@@ -47,7 +47,7 @@ def prompt_int_range(s, low, high):
         try:
             opt_num = int(input(question))
             if opt_num < low or opt_num > high:
-                print(f"{opt_num} is not a valid option, num must be less than {len(opts)}")
+                print(f"{opt_num} is not a valid option, num must be >= {low} and <= {high}")
                 if prompt_yn("Try again?"):
                     continue
                 else:
