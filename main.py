@@ -1,7 +1,65 @@
 import os, json, math, struct, aifc, chunk, re
+import readline
 
 # SM64 Audio Manager v0.1
 # Made by Arthurtilly
+
+# Allow tab autocompletion for inputs
+readline.set_completer_delims(' \t\n=')
+readline.parse_and_bind("tab: complete")
+
+def explicit_exit(s = ''):
+    if s:
+        print(s)
+    print('Exiting...')
+    exit(0)
+
+def prompt_yn(s):
+    while True:
+        res = input(f"{s}\n(y/n): ")
+        if (res.upper() in ["Y", "N"]):
+            return res.upper() == "Y"
+
+def prompt_list(s, opts):
+    ops_fmt = '\n'.join([f"{i}: {o}" for i, o in enumerate(opts)])
+    question = f"{s}\n{opts_fmt}\nEnter option number: "
+    while True:
+        res = input(question)
+        try:
+            opt_num = int(res)
+            if opt_num >= len(opts):
+                print(f"{opt_num} is not a valid option, num must be less than {len(opts)}")
+                if prompt_yn("Try again?"):
+                    continue
+                else:
+                    return None
+            else:
+                return opts[opt_num]
+        except:
+            if prompt_yn('Invalid input. Try again?'):
+                continue
+            else:
+                return None
+
+def prompt_int_range(s, low, high):
+    question = f"{s}\nEnter number between {low} and {high}: "
+    while True:
+        try:
+            opt_num = int(input(question))
+            if opt_num < low or opt_num > high:
+                print(f"{opt_num} is not a valid option, num must be less than {len(opts)}")
+                if prompt_yn("Try again?"):
+                    continue
+                else:
+                    return None
+            else:
+                return opt_num
+        except:
+            if prompt_yn('Invalid input. Try again?'):
+                continue
+            else:
+                return None
+            
 
 """
 Check if the streamed audio bank has been created, and create it if not.
@@ -52,7 +110,7 @@ def create_streamed_audio_bank(decompFolder):
 """
 Add a new instrument to the streamed audio sound bank.
 """
-def add_streamed_audio_inst(soundName, decompFolder):
+def add_streamed_audio_inst(soundName, decompFolder, replace):
     jsonPath = os.path.join(decompFolder, "sound/sound_banks/streamed_audio.json")
     
     j = open(jsonPath, "r")
@@ -61,6 +119,24 @@ def add_streamed_audio_inst(soundName, decompFolder):
     
     # Get number of existing instruments
     instNo = len(jsonBankData["instruments"])
+
+    # Check for duplicate
+    found_replacement = False
+    for i, inst in enumerate(jsonBankData["instruments"].values()):
+        if inst["sound"] == soundName:
+            if replace: # Sound is being replaced
+                instNo = i
+                found_replacement = True
+                print(f"Replacing inst{instNo}")
+                break
+            else: # Sound was not intended to be a replacement
+                print(f'Error: {soundName} already exists in sound/sound_banks/streamed_audio.json')
+                if not prompt_yn('Continue?'):
+                    explicit_exit()
+
+    # Exit if sound should be replaced and wasn't found
+    if replace and not found_replacement:
+        raise ValueError(f'Error: could not find {soundName} in sound/sound_banks/streamed_audio.json')
     
     # Add new instrument
     jsonBankData["instruments"]["inst%d" % instNo] = {
@@ -69,13 +145,15 @@ def add_streamed_audio_inst(soundName, decompFolder):
         "sound": "%s" % soundName
     }
     
-    jsonBankData["instrument_list"].append("inst%d" % instNo)
+    # If replacing, we're only here for the instNo
+    if not replace:
+        jsonBankData["instrument_list"].append("inst%d" % instNo)
     
-    j = open(jsonPath, "w")
-    json.dump(jsonBankData, j, indent=4)
-    j.close()
+        j = open(jsonPath, "w")
+        json.dump(jsonBankData, j, indent=4)
+        j.close()
     
-    print("CHANGED: Modified 'sound/sound_banks/streamed_audio.json'")
+        print("CHANGED: Modified 'sound/sound_banks/streamed_audio.json'")
     
     return instNo
 
@@ -125,17 +203,43 @@ def create_new_sequence(seqName, decompFolder):
     
     # m64s must be numbered correctly here otherwise compilation will fail
     m64Num = hex(len(jsonSeqData) - 1)[2:].upper()
+
     # Add "custom" so git will pick it up
     m64Name = "%s_custom_%s" % (m64Num, seqName)
+
+    # check if name exists
+    noNumName = f"_custom_{seqName}"
+    replace = False
+
+    dups = [n for n in jsonSeqData.keys() if noNumName in n]
+    if len(dups):
+        replace = True
+        # there was one duplicate name
+        if len(dups) == 1:
+            if prompt_yn(f'Replace {dups[0]}?'):
+                m64Name = dups[0]
+                replace = True
+            else:
+                print('Creating new sequence')
+        # there was a few duplicate names
+        else:
+            name = prompt_list(dups)
+            if name is not None:
+                replace = True
+                m64Name = name
+            else:
+                print('Creating new sequence')
+
     jsonSeqData[m64Name] = ["streamed_audio"]
+
+    if not replace:
+        j = open(jsonPath, "w")
+        json.dump(jsonSeqData, j, indent=4)
+        j.close()
+        
+        print("CHANGED: Modified 'sound/sequences.json'")
     
-    j = open(jsonPath, "w")
-    json.dump(jsonSeqData, j, indent=4)
-    j.close()
-    
-    print("CHANGED: Modified 'sound/sequences.json'")
-    
-    return m64Name
+    return m64Name, replace
 
 
 """
@@ -204,8 +308,7 @@ def copy_aiff_data(aiffPath, m64Name, decompFolder):
     
     
     seconds = frames / framerate
-    ans = input("Would you like to specify custom loop points? (y/n) ")
-    if ans.upper() == "Y":
+    if prompt_yn("Would you like to specify custom loop points?"):
         print("\nEnter a number of seconds between 0 and %.3f.\nYou can use a negative number to offset backwards from the beginning,\nor leave it blank to use the default." % seconds)
         loopStart = int(get_loop_point("Enter timestamp for start of loop (default 0.000): ", frames, framerate, 0))
         loopEnd = int(get_loop_point("Enter timestamp for end of loop (default %.3f): " % seconds, frames, framerate, frames))
@@ -226,17 +329,25 @@ def copy_aiff_data(aiffPath, m64Name, decompFolder):
 """
 Add a new sequence to the sequence IDs enum in include/seq_ids.h.
 """
-def append_seq_id(seqName, decompFolder):
+def append_seq_id(seqName, decompFolder, replace):
     seqIdsPath = os.path.join(decompFolder, "include/seq_ids.h")
     
     seqIdsFile = open(seqIdsPath, "r")
     seqIdsLines = seqIdsFile.readlines()
     seqIdsFile.close()
     listFound = False
+    seq_index = None
+    enum_start = 0
     
     for i in range(len(seqIdsLines)):
         # Check for end of enum
-        if "SEQ_COUNT" in seqIdsLines[i]:
+        if replace and "enum SeqId {" in seqIdsLines[i]:
+            enum_start = i + 1
+        elif replace and seqName in seqIdsLines[i]:
+            seq_index = i - enum_start
+            listFound = True
+            break
+        elif not replace and "SEQ_COUNT" in seqIdsLines[i]:
             seqIdsLines.insert(i, "    %s,\n" % seqName)
             listFound = True
             break
@@ -244,23 +355,28 @@ def append_seq_id(seqName, decompFolder):
     if not listFound:
         raise ValueError("'SEQ_COUNT' end macro missing from include/seq_ids.h! Aborted")
     
-    seqIdsFile = open(seqIdsPath, "w", newline="\n")
-    seqIdsFile.writelines(seqIdsLines)
-    seqIdsFile.close()
-    
-    print("CHANGED: Modified 'include/seq_ids.h'")
+    if not replace:
+        seqIdsFile = open(seqIdsPath, "w", newline="\n")
+        seqIdsFile.writelines(seqIdsLines)
+        seqIdsFile.close()
+        
+        print("CHANGED: Modified 'include/seq_ids.h'")
 
+    # seq_index will be None if not replacing
+    return seq_index
 
 """
 Add corresponding entry for the new sequence in the volume table in src/audio/external.c.
 """
-def append_default_volume_table(volume, decompFolder):
+def append_default_volume_table(volume, decompFolder, seq_index):
     externalPath = os.path.join(decompFolder, "src/audio/external.c")
     
     externalFile = open(externalPath, "r")
     externalLines = externalFile.readlines()
     externalFile.close()
     inTable = False
+    table_index = 0
+    found_volume = seq_index is None # Default to found since we're replacing otherwise
     
     for i in range(len(externalLines)):
         if not inTable:
@@ -268,13 +384,22 @@ def append_default_volume_table(volume, decompFolder):
             if "sBackgroundMusicDefaultVolume" in externalLines[i]:
                 inTable = True
         # Check for end of table
-        elif "}" in externalLines[i]:
-            externalLines.insert(i, "    %d,\n" % volume)
-            break
-        
+        else:
+            if table_index == seq_index:
+                externalLines[i] = "    %d,\n" % volume
+                found_volume = True
+                break
+            if "}" in externalLines[i] and seq_index is None:
+                externalLines.insert(i, "    %d,\n" % volume)
+                break
+            table_index = table_index + 1
+
     if not inTable:
         raise ValueError("'sBackgroundMusicDefaultVolume' table missing from src/audio/external.c! Aborted")
-        
+
+    if not found_volume:
+        raise ValueError(f"Could not find volume index {seq_index} in src/audio/external.c! Aborted")
+
     externalFile = open(externalPath, "w", newline="\n")
     externalFile.writelines(externalLines)
     externalFile.close()  
@@ -344,15 +469,19 @@ def add_streamed_audio(aiffPath, name, decompFolder):
     # Option to keep existing loop points (detect loop points?)
     print("")
     name = name.lower().replace(" ","_")
-    m64Name = create_new_sequence(name, decompFolder)
+    m64Name, replace = create_new_sequence(name, decompFolder)
     
     copy_aiff_data(aiffPath, m64Name, decompFolder)
-    instNo = add_streamed_audio_inst(m64Name, decompFolder)
-    create_m64(m64Name, instNo, 127, decompFolder)
+    instNo = add_streamed_audio_inst(m64Name, decompFolder, replace)
+
+    volume = prompt_int_range("Song volume", 0, 127)
+    if volume is None:
+        explicit_exit('No volume was entered.')
+    create_m64(m64Name, instNo, volume, decompFolder)
     
     seqName = "SEQ_STREAMED_" + name.upper()
-    append_seq_id(seqName, decompFolder)
-    append_default_volume_table(127, decompFolder)
+    seq_index = append_seq_id(seqName, decompFolder, replace)
+    append_default_volume_table(volume, decompFolder, seq_index)
     print("")
     print("Done! Your sequence has been added as %s." % seqName)
 
@@ -365,15 +494,13 @@ def main():
     if not verify_decomp(decompFolder): return
     
     check_if_bank_exists(decompFolder)
-    
     aiffPath = os.path.expanduser(input("Enter path for the .aiff file: "))
     if not verify_aiff(aiffPath): return
-    
+
     a = aifc.open(aiffPath, "r")
     print("\nAIFF data:\n\tSample rate: %dHZ\n\tTotal samples: %d\n\tLength: %.1f seconds\n" % (a.getframerate(), a.getnframes(), a.getnframes()/a.getframerate()))
     if (a.getframerate() > 32000):
-        ans = input("Warning: sample rate (%dHZ) exceeds recommended rate of 32000HZ.\nConsider reducing sample rate to save space.\nContinue? (y/n) ")
-        if ans.upper() != "Y":
+        if not prompt_yn("Warning: sample rate (%dHZ) exceeds recommended rate of 32000HZ.\nConsider reducing sample rate to save space.\nContinue?"):
             return
     
     name = input("Enter a name for the streamed audio: ")
