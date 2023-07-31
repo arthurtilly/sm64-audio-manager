@@ -53,13 +53,46 @@ class SwitchableFrame:
         createPageFunc(self)
 
 # The frame in the top right that controls the main input
-class RightFrameManager(SwitchableFrame):
+class MainFrameManager(SwitchableFrame):
     def __init__(self, parent):
         SwitchableFrame.__init__(self, parent)
-        self.create_import_new_sequence_page()
+        if decomp is None:
+            self.create_no_dir_set_page()
+        else:
+            self.create_regular_page()
+            bottomFrameManager.decompDirectoryText.set("Decomp directory: %s" % decomp)
 
-    def create_import_new_sequence_page(self):
+
+    # Create the page that is displayed when no decomp directory is set
+    def create_no_dir_set_page(self):
+        self.noDirSetLabel = ttk.Label(master=self.frame, text="No decomp directory chosen...")
+        self.noDirSetLabel.pack(anchor="center", expand=True)
+
+    
+    # Create the regular page for importing sequences
+    def create_regular_page(self):
+        self.leftFrame = ttk.Frame(master=self.frame)
+        self.leftFrame.pack(fill=tk.Y, side=tk.LEFT)
+
+        self.sequences = scan_all_sequences(decomp)
         self.currentSeqId = 0
+
+        # Create the list of sequences on the left
+        self.seqList = ttk.Treeview(master=self.leftFrame, show="tree")
+        self.seqList.column("#0",width=guiscale(180), stretch=tk.NO, anchor="w")
+        for i, seq in enumerate(self.sequences):
+            self.seqList.insert(parent='',id=i+1,index=i,text="0x%02X - %s" % (i+1,seq[0]))
+        self.seqList.insert(parent='',id=0,index=0,text="Add new sequence...")
+        self.seqList.pack(side=tk.LEFT, fill=tk.Y, expand=True)
+        self.seqList.selection_set(0)
+        self.seqList.bind("<<TreeviewSelect>>", self.seqlist_selection_changed)
+
+        # Create the scrollbar for the sequence list
+        vsb = ttk.Scrollbar(master=self.leftFrame, orient="vertical", command=self.seqList.yview)
+        vsb.pack(fill=tk.Y, side=tk.RIGHT, expand=True)
+        self.seqList.configure(yscrollcommand=vsb.set)
+
+        # Create the options page
         self.optionsFrame = ttk.Frame(master=self.frame)
         self.optionsFrame.pack(fill=tk.X, side=tk.TOP, expand=True, padx=10, pady=10)
 
@@ -191,16 +224,17 @@ class RightFrameManager(SwitchableFrame):
             self.toggle_loop_options(state)
 
 
-    # Change the info message
-    def set_info_message(self, message, colour):
-        self.importInfoLabel.config(text=message, foreground=colour)
-
     # Toggle loop options between enabled and disabled
     def toggle_loop_options(self, state):
         self.loopBeginLabel.config(state=state)
         self.loopBeginEntry.config(state=state)
         self.loopEndLabel.config(state=state)
         self.loopEndEntry.config(state=state)
+
+
+    # Change the info message
+    def set_info_message(self, message, colour):
+        self.importInfoLabel.config(text=message, foreground=colour)
 
 
     # Create a new tab for the panning of an audio channel
@@ -213,7 +247,8 @@ class RightFrameManager(SwitchableFrame):
 
         panningValue = tk.IntVar()
         panningValue.set(0)
-        panningSlider = ttk.Scale(master=panningFrame, from_=-63, to=63, orient=tk.HORIZONTAL, variable=panningValue, takefocus=False, command=self.pan_slider_changed)
+        panningValue.trace("w", self.panning_changed)
+        panningSlider = ttk.Scale(master=panningFrame, from_=-63, to=63, orient=tk.HORIZONTAL, variable=panningValue, takefocus=False)
         panningSlider.pack(side=tk.RIGHT)
 
         self.pans.append((panningFrame, panningLabel, panningValue, panningSlider))
@@ -268,14 +303,14 @@ class RightFrameManager(SwitchableFrame):
             self.set_info_message("Success!", "green")
             if replace is None:
                 # If not replacing, add a new sequence to the view and select it
-                mainFrameManager.sequences.append((self.sequenceFilename.get(), self.sequenceName.get()))
-                id = len(mainFrameManager.sequences)
-                mainFrameManager.seqList.insert(parent='',index=id, id=id, text="0x%02X - %s" % (id,self.soundbankName.get()))
-                mainFrameManager.seqList.selection_set(id)
+                self.sequences.append((self.sequenceFilename.get(), self.sequenceName.get()))
+                id = len(self.sequences)
+                self.seqList.insert(parent='',index=id, id=id, text="0x%02X - %s" % (id,self.soundbankName.get()))
+                self.seqList.selection_set(id)
             else:
                 # If replacing, change the text of the selected sequence in the view
-                mainFrameManager.sequences[self.currentSeqId-1] = (self.sequenceFilename.get(), self.sequenceName.get())
-                mainFrameManager.seqList.item(self.currentSeqId, text="0x%02X - %s" % (self.currentSeqId,self.sequenceFilename.get()))
+                self.sequences[self.currentSeqId-1] = (self.sequenceFilename.get(), self.sequenceName.get())
+                self.seqList.item(self.currentSeqId, text="0x%02X - %s" % (self.currentSeqId,self.sequenceFilename.get()))
         except AudioManagerException as e:
             # Error encountered, echo the error message
             self.set_info_message("Error: " + str(e), "red")
@@ -322,71 +357,29 @@ class RightFrameManager(SwitchableFrame):
         self.toggle_loop_options(tk.NORMAL if self.doLoop.get() else tk.DISABLED)
 
 
-    # Update the pan value display when the slider is moved
-    def pan_slider_changed(self, event):
+    # Update the pan value display when the slider is changed
+    def panning_changed(self, *args):
         for frame, label, value, slider in self.pans:
             label.config(text = "Pan: %d" % slider.get())
     
 
+    # Update the warning message when the sequence filename is changed
     def sequence_filename_changed(self, *args):
         # If vanilla sequence:
         if self.currentSeqId != 0 and self.currentSeqId <= 0x22:
-            if mainFrameManager.sequences[self.currentSeqId-1][0] != self.sequenceFilename.get():
+            if self.sequences[self.currentSeqId-1][0] != self.sequenceFilename.get():
                 self.set_info_message("Warning: Changing vanilla sequence filenames can cause build issues.", "darkorange")
             else:
                 self.set_info_message("", "black")
 
 
-
-
-
-# The main frame that contains the right-hand frame and the list of all sequences
-class MainFrameManager(SwitchableFrame):
-    def __init__(self, parent):
-        SwitchableFrame.__init__(self, parent)
-        if decomp is None:
-            self.create_no_dir_set_page()
-        else:
-            self.create_regular_page()
-            bottomFrameManager.decompDirectoryText.set("Decomp directory: %s" % decomp)
-
-
-    # Create the page that is displayed when no decomp directory is set
-    def create_no_dir_set_page(self):
-        self.noDirSetLabel = ttk.Label(master=self.frame, text="No decomp directory chosen...")
-        self.noDirSetLabel.pack(anchor="center", expand=True)
-
-    
-    # Create the regular page for importing sequences
-    def create_regular_page(self):
-        self.leftFrame = ttk.Frame(master=self.frame)
-        self.leftFrame.pack(fill=tk.Y, side=tk.LEFT)
-
-        self.rightFrameManager = RightFrameManager(self.frame)
-        self.sequences = scan_all_sequences(decomp)
-
-        # Create the list of sequences on the left
-        self.seqList = ttk.Treeview(master=self.leftFrame, show="tree")
-        self.seqList.column("#0",width=guiscale(180), stretch=tk.NO, anchor="w")
-        for i, seq in enumerate(self.sequences):
-            self.seqList.insert(parent='',id=i+1,index=i,text="0x%02X - %s" % (i+1,seq[0]))
-        self.seqList.insert(parent='',id=0,index=0,text="Add new sequence...")
-        self.seqList.pack(side=tk.LEFT, fill=tk.Y, expand=True)
-        self.seqList.selection_set(0)
-        self.seqList.bind("<<TreeviewSelect>>", self.seqList_selection_changed)
-
-        vsb = ttk.Scrollbar(master=self.leftFrame, orient="vertical", command=self.seqList.yview)
-        vsb.pack(fill=tk.Y, side=tk.RIGHT, expand=True)
-        self.seqList.configure(yscrollcommand=vsb.set)
-
-
     # When a new sequence is selected, update some of the info on the right
-    def seqList_selection_changed(self, event):
+    def seqlist_selection_changed(self, event):
         id = int(self.seqList.selection()[0])
-        self.rightFrameManager.currentSeqId = id
+        self.currentSeqId = id
         if id != 0:
-            self.rightFrameManager.sequenceName.set(self.sequences[id-1][1])
-            self.rightFrameManager.sequenceFilename.set(self.sequences[id-1][0])
+            self.sequenceName.set(self.sequences[id-1][1])
+            self.sequenceFilename.set(self.sequences[id-1][0])
 
 
 # The frame that displays the current decomp directory
