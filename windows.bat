@@ -18,4 +18,4 @@ if %errorlevel% neq 0 (
 )
 
 REM Run GUI
-python src/gui.py
+python src/gui/main.py

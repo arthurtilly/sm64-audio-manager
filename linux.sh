@@ -31,4 +31,4 @@ if ! command_exists python; then
 fi
 
 # Run GUI
-python3 src/gui.py
+python3 src/gui/main.py

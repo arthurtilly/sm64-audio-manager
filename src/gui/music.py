@@ -4,82 +4,29 @@ warnings.filterwarnings("ignore", category=DeprecationWarning)
 import tkinter as tk
 import os
 import aifc
-import json
 import tkinter.ttk as ttk
-from tkinter import DISABLED, filedialog as fd
+from tkinter import filedialog as fd
 
+from gui_misc import *
+append_parent_dir()
 from misc import *
-import main
-
-SCALE = 1
-decomp = None
-
-guiscale = lambda x: int(x * SCALE)
-
-window = tk.Tk()
-window.tk.call('tk', 'scaling', SCALE * 1.3)
-window.title("SM64 Audio Manager")
-style = ttk.Style()
-style.theme_use('default')
-
-# this stuff is to remove some ugly default styling on focused elements
-style.configure('Treeview.Item', indicatorsize=0)
-style.configure("Bottom.TFrame",background="lightgrey", relief="groove")
-style.configure("Tab", focuscolor=style.configure(".")["background"])
-style.configure("TButton", focuscolor=style.configure(".")["background"])
-
-if not os.path.exists("persistent.json"):
-    persistent = {}
-else:
-    with open("persistent.json", "r") as jsonFile:
-        persistent = json.load(jsonFile)
-
-if "decomp" in persistent:
-    decomp = persistent["decomp"]
-
-# Generic class for a frame that can switch between multiple pages
-class SwitchableFrame:
-    def __init__(self, parent):
-        self.parent = parent
-        self.create_frame(self.parent)
-        
-    def create_frame(self, parent):
-        self.frame = ttk.Frame(master=parent)
-        self.frame.pack(fill=tk.BOTH, expand=True)
-
-    def switch_page(self, createPageFunc):
-        self.frame.destroy()
-        self.create_frame(self.parent)
-        createPageFunc(self)
-
-# The frame in the top right that controls the main input
-class MainFrameManager(SwitchableFrame):
-    def __init__(self, parent):
-        SwitchableFrame.__init__(self, parent)
-        if decomp is None:
-            self.create_no_dir_set_page()
-        else:
-            self.create_regular_page()
-            bottomFrameManager.decompDirectoryText.set("Decomp directory: %s" % decomp)
 
 
-    # Create the page that is displayed when no decomp directory is set
-    def create_no_dir_set_page(self):
-        self.noDirSetLabel = ttk.Label(master=self.frame, text="No decomp directory chosen...")
-        self.noDirSetLabel.pack(anchor="center", expand=True)
+class StreamedMusicTab(MainTab):
+    def switch_decomp(self, decomp):
+        self.decomp = decomp
+        self.sequences = scan_all_sequences(decomp)
 
-    
     # Create the regular page for importing sequences
-    def create_regular_page(self):
-        self.leftFrame = ttk.Frame(master=self.frame)
+    def create_page(self, frame):
+        self.leftFrame = ttk.Frame(master=frame)
         self.leftFrame.pack(fill=tk.Y, side=tk.LEFT)
 
-        self.sequences = scan_all_sequences(decomp)
         self.currentSeqId = 0
 
         # Create the list of sequences on the left
         self.seqList = ttk.Treeview(master=self.leftFrame, show="tree")
-        self.seqList.column("#0",width=guiscale(180), stretch=tk.NO, anchor="w")
+        self.seqList.column("#0",width=180, stretch=tk.NO, anchor="w")
         for i, seq in enumerate(self.sequences):
             self.seqList.insert(parent='',id=i+1,index=i,text="0x%02X - %s" % (i+1,seq[0]))
         self.seqList.insert(parent='',id=0,index=0,text="Add new sequence...")
@@ -93,11 +40,11 @@ class MainFrameManager(SwitchableFrame):
         self.seqList.configure(yscrollcommand=vsb.set)
 
         # Create the options page
-        self.optionsFrame = ttk.Frame(master=self.frame)
+        self.optionsFrame = ttk.Frame(master=frame)
         self.optionsFrame.pack(fill=tk.X, side=tk.TOP, expand=True, padx=10, pady=10)
 
         for i in range(4):
-            self.optionsFrame.rowconfigure(i, minsize=guiscale(30))
+            self.optionsFrame.rowconfigure(i, minsize=30)
 
         self.optionsFrame.columnconfigure(0, weight=1)
 
@@ -151,7 +98,7 @@ class MainFrameManager(SwitchableFrame):
         self.namesFrame.grid(row=3, column=0, padx=10, pady=(20,0))
 
         for i in range(4):
-            self.namesFrame.rowconfigure(i, minsize=guiscale(30))
+            self.namesFrame.rowconfigure(i, minsize=30)
 
         # Fourth line: Set sequence name
         self.sequenceNameLabel = ttk.Label(master=self.namesFrame, text="Sequence name:")
@@ -191,8 +138,8 @@ class MainFrameManager(SwitchableFrame):
         self.sampleNameEntry.grid(row=3, column=1, sticky=tk.W)
 
         # Import button
-        self.importButtonFrame = ttk.Frame(master=self.frame)
-        self.importButtonFrame.pack(side=tk.TOP)
+        self.importButtonFrame = ttk.Frame(master=self.optionsFrame)
+        self.importButtonFrame.grid(row=4, column=0, pady=(20,0))
 
         self.importButton = ttk.Button(master=self.importButtonFrame, text="Import", command=self.import_pressed)
         self.importButton.pack(padx=(2,2), pady=2)
@@ -380,41 +327,3 @@ class MainFrameManager(SwitchableFrame):
         if id != 0:
             self.sequenceName.set(self.sequences[id-1][1])
             self.sequenceFilename.set(self.sequences[id-1][0])
-
-
-# The frame that displays the current decomp directory
-class BottomFrameManager:
-    def __init__(self, parent):
-        self.frame = ttk.Frame(master=parent, style="Bottom.TFrame")
-        self.frame.pack(fill=tk.X, side=tk.BOTTOM)
-        
-        self.decompDirectoryText = tk.StringVar(value="Decomp directory: Not set")
-        
-        self.decompTextLabel = ttk.Label(master=self.frame, textvariable=self.decompDirectoryText, background="lightgrey")
-        self.decompTextLabel.pack(side=tk.LEFT, padx=(2,10))
-        
-        self.setDecompFolder = ttk.Button(master=self.frame, text="Choose decomp folder...", command=change_decomp_folder, takefocus=False)
-        self.setDecompFolder.pack(side=tk.LEFT, padx=(2,2), pady=4)
-
-
-# Save all persistent data
-def save_persistent():
-    with open("persistent.json", "w") as f:
-        json.dump(persistent, f)
-
-
-# Open a new decomp folder
-def change_decomp_folder():
-    global decomp
-    folder = fd.askdirectory()
-    if folder:
-        persistent["decomp"] = folder
-        save_persistent()
-        decomp = folder
-        bottomFrameManager.decompDirectoryText.set("Decomp directory: %s" % decomp)
-        mainFrameManager.switch_page(MainFrameManager.create_regular_page)
-
-bottomFrameManager = BottomFrameManager(window)
-mainFrameManager = MainFrameManager(window)
-
-window.mainloop()
