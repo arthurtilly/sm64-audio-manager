@@ -96,7 +96,7 @@ def calculate_panning(pan, numChannels):
             raise AudioManagerException("Invalid pan value %d (must be between -63 and 64)" % pan)
     return pan
 
-    
+ 
 # Estimate the size of an audio file
 def estimate_audio_size(audioPath):
     aiffFile = aifc.open(audioPath, "r")
