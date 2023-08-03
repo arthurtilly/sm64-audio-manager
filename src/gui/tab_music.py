@@ -111,7 +111,7 @@ class StreamedMusicTab(MainTab):
         self.loopBegin.setAlignment(QtCore.Qt.AlignmentFlag.AlignRight)
         self.loopBegin.setMaximumWidth(80)
         self.loopBegin.setText("")
-        self.loopBegin.setValidator(QDoubleValidator())
+        self.loopBegin.setValidator(QIntValidator())
         loopInfoLayout.addWidget(self.loopBegin)
         loopInfoLayout.setStretchFactor(self.loopBegin, 0)
 
@@ -125,7 +125,7 @@ class StreamedMusicTab(MainTab):
         self.loopEnd.setAlignment(QtCore.Qt.AlignmentFlag.AlignRight)
         self.loopEnd.setMaximumWidth(80)
         self.loopEnd.setText("")
-        self.loopEnd.setValidator(QDoubleValidator())
+        self.loopEnd.setValidator(QIntValidator())
         loopInfoLayout.addWidget(self.loopEnd)
         loopInfoLayout.setStretchFactor(self.loopEnd, 0)
 
@@ -276,20 +276,7 @@ class StreamedMusicTab(MainTab):
 
     # Import a sequence into decomp
     def import_pressed(self):
-        # Validate entered loop points
-        try:
-            loopBeginValue = float(self.loopBegin.text()) * 1000
-        except ValueError:
-            self.set_info_message("Error: Invalid loop start value '%s'" % self.loopBegin.text(), COLOR_RED)
-            return
-        
-        try:
-            loopEndValue = float(self.loopEnd.text()) * 1000
-        except ValueError: 
-            self.set_info_message("Error: Invalid loop end value '%s'" % self.loopEnd.text(), COLOR_RED)
-            return
-        
-        loopBegin, loopEnd = calculate_loops(self.selectedSoundFile, None, loopBeginValue, None, loopEndValue)
+        loopBegin, loopEnd = calculate_loops(self.selectedSoundFile, int(self.loopBegin.value()), None, int(self.loopEnd.value()), None)
 
         # Calculate array of panning values
         panning = []
@@ -365,8 +352,8 @@ class StreamedMusicTab(MainTab):
             aiffFile.close()
             
             # Initialise other data fields
-            self.loopBegin.setText("0.0")
-            self.loopEnd.setText("%.4f" % (aiffFile.getnframes() / aiffFile.getframerate()))
+            self.loopBegin.setText("0")
+            self.loopEnd.setText(str(aiffFile.getnframes()))
             filename = os.path.splitext(os.path.basename(self.selectedSoundFile))[0].replace(' ', '_')
             self.sequenceName.setText("SEQ_%s" % filename.upper())
             # If a vanilla sequence, don't change the sequence filename to be safe
