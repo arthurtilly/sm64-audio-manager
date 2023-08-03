@@ -283,11 +283,14 @@ class ConvertAudioTab(MainTab):
         )
 
         for packet in inputFile.demux(in_stream):
-            for frame in packet.decode():
-                newFrames = resampler.resample(frame)
-                for frame in newFrames:
-                    for packet in out_stream.encode(frame):
-                        outputFile.mux(packet)
+            try:
+                for frame in packet.decode():
+                    newFrames = resampler.resample(frame)
+                    for frame in newFrames:
+                        for packet in out_stream.encode(frame):
+                            outputFile.mux(packet)
+            except av.AVError:
+                continue
 
         inputFile.close()
         outputFile.close()
