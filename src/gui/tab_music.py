@@ -62,7 +62,7 @@ class StreamedMusicTab(MainTab):
     
         # Label
         self.selectedSoundFile = None
-        self.selectedFileLabel = QLabel(text="Selected sound file: None")
+        self.selectedFileLabel = QLabel(text="Selected audio file: None")
         selectSoundFileLayout.addWidget(self.selectedFileLabel, 0, 1)
 
         spacer = QSpacerItem(0, 0, QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Minimum)
@@ -209,25 +209,21 @@ class StreamedMusicTab(MainTab):
 
         optionsLayout.addStretch(1)
 
+        self.toggableWidgets = (
+            loopInfoWidget,
+            panningWidget,
+            nameWidget,
+            importWidget,
+        )
+
         self.toggle_import_options(False)
 
 
 
     # Switch between having all options enabled or disabled
     def toggle_import_options(self, enabled):
-        self.doLoop.setEnabled(enabled)
-        self.panningTabWidget.setEnabled(enabled)
-        self.sequenceNameLabel.setEnabled(enabled)
-        self.sequenceName.setEnabled(enabled)
-        self.sequenceFilenameLabel.setEnabled(enabled)
-        self.sequenceFilename.setEnabled(enabled)
-        self.soundbankNameLabel.setEnabled(enabled)
-        self.soundbankName.setEnabled(enabled)
-        self.sampleNameLabel.setEnabled(enabled)
-        self.sampleName.setEnabled(enabled)
-        self.importButton.setEnabled(enabled)
-        if not enabled or self.doLoop.isChecked():
-            self.toggle_loop_options(enabled)
+        for widget in self.toggableWidgets:
+            widget.setEnabled(enabled)
 
 
     # Toggle loop options between enabled and disabled
@@ -331,12 +327,30 @@ class StreamedMusicTab(MainTab):
     def select_sound_file_button_pressed(self):
         dialog = QFileDialog()
         dialog.setFileMode(QFileDialog.FileMode.ExistingFile)
-        dialog.setNameFilter("Sound files (*.aiff)")
+        dialog.setNameFilter("AIFF files (*.aiff)")
         dialog.setViewMode(QFileDialog.ViewMode.Detail)
         if dialog.exec() == QFileDialog.DialogCode.Accepted:
             self.selectedSoundFile = dialog.selectedFiles()[0]
-            aiffFile = aifc.open(self.selectedSoundFile, "r")
-            self.selectedFileLabel.setText("Selected sound file: " + os.path.basename(self.selectedSoundFile))
+
+            # Attempt to open file
+            try:
+                aiffFile = aifc.open(self.selectedSoundFile, "r")
+            except aifc.Error:
+                # Invalid AIFF file
+                self.selectedFileLabel.setText("Selected audio file: None")
+                self.estimatedSizeLabel.setText("")
+                self.sequenceName.setText("")
+                self.sequenceFilename.setText("")
+                self.soundbankName.setText("")
+                self.sampleName.setText("")
+                self.loopBegin.setText("")
+                self.loopEnd.setText("")
+                self.toggle_import_options(False)
+                self.set_info_message("Error: Invalid AIFF file", COLOR_RED)
+                return
+            self.set_info_message("", COLOR_WHITE)
+
+            self.selectedFileLabel.setText("Selected audio file: " + os.path.basename(self.selectedSoundFile))
 
             # Determine number of channels and initialise notebook for panning tabs
             self.resize_panning_notebook(aiffFile.getnchannels())
@@ -345,7 +359,7 @@ class StreamedMusicTab(MainTab):
                 self.pans[1][1].setValue(63)
             else:
                 for i in range(len(self.pans)):
-                    self.pans[i][2].setValue(0)
+                    self.pans[i][1].setValue(0)
 
             self.panning_changed(None)
             aiffFile.close()

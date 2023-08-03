@@ -139,11 +139,16 @@ def change_decomp_folder():
     dialog.setFileMode(QFileDialog.FileMode.Directory)
     if dialog.exec() == QFileDialog.DialogCode.Accepted:
         folder = dialog.selectedFiles()[0]
-        persistent["decomp"] = folder
-        save_persistent()
-        decomp = folder
-        window.switch_page(MainWindow.create_main_page)
-        window.bottomBar.decompTextLabel.setText("Decomp directory: %s" % decomp)
+        try:
+            validate_decomp(folder)
+            persistent["decomp"] = folder
+            save_persistent()
+            decomp = folder
+            window.switch_page(MainWindow.create_main_page)
+            window.bottomBar.decompTextLabel.setText("Decomp directory: %s" % decomp)
+        except AudioManagerException:
+            window.switch_page(MainWindow.create_no_dir_set_page)
+            window.noDirSetLabel.setText("Invalid decomp directory!")
 
 
 window = MainWindow()
