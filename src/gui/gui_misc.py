@@ -18,10 +18,14 @@ def append_parent_dir():
 
 # Base class for a tab in the main window notebook
 class MainTab(QWidget):
-    def __init__(self, decomp):
+    def __init__(self, window, decomp):
         super().__init__()
         self.decomp = decomp
+        self.mainWindow = window
         self.create_page()
 
-    def create_page():
+    def create_page(self):
+        pass
+
+    def set_audio_file(self, path):
         pass

@@ -276,7 +276,7 @@ class StreamedMusicTab(MainTab):
 
     # Import a sequence into decomp
     def import_pressed(self):
-        loopBegin, loopEnd = calculate_loops(self.selectedSoundFile, int(self.loopBegin.value()), None, int(self.loopEnd.value()), None)
+        loopBegin, loopEnd = calculate_loops(self.selectedSoundFile, int(self.loopBegin.text()), None, int(self.loopEnd.text()), None)
 
         # Calculate array of panning values
         panning = []
@@ -309,6 +309,58 @@ class StreamedMusicTab(MainTab):
             # Error encountered, echo the error message
             self.set_info_message("Error: " + str(e), COLOR_RED)
 
+    def set_audio_file(self, path):
+        self.selectedSoundFile = path
+
+        # Attempt to open file
+        try:
+            aiffFile = aifc.open(self.selectedSoundFile, "r")
+        except aifc.Error:
+            # Invalid AIFF file
+            self.selectedFileLabel.setText("Selected audio file: None")
+            self.estimatedSizeLabel.setText("")
+            self.sequenceName.setText("")
+            self.sequenceFilename.setText("")
+            self.soundbankName.setText("")
+            self.sampleName.setText("")
+            self.loopBegin.setText("")
+            self.loopEnd.setText("")
+            self.toggle_import_options(False)
+            self.set_info_message("Error: Invalid AIFF file", COLOR_RED)
+            return
+        self.set_info_message("", COLOR_WHITE)
+
+        self.selectedFileLabel.setText("Selected audio file: " + os.path.basename(self.selectedSoundFile))
+
+        # Determine number of channels and initialise notebook for panning tabs
+        self.resize_panning_notebook(aiffFile.getnchannels())
+        if aiffFile.getnchannels() == 2:
+            self.pans[0][1].setValue(-63)
+            self.pans[1][1].setValue(63)
+        else:
+            for i in range(len(self.pans)):
+                self.pans[i][1].setValue(0)
+
+        self.panning_changed(None)
+        aiffFile.close()
+        
+        # Initialise other data fields
+        self.loopBegin.setText("0")
+        self.loopEnd.setText(str(aiffFile.getnframes()))
+        filename = os.path.splitext(os.path.basename(self.selectedSoundFile))[0].replace(' ', '_')
+        self.sequenceName.setText("SEQ_%s" % filename.upper())
+        # If a vanilla sequence, don't change the sequence filename to be safe
+        if not (self.currentSeqId > 0 and self.currentSeqId <= 0x22):
+            self.sequenceFilename.setText("%s" % filename.lower())
+
+        self.soundbankName.setText("%s" % filename.lower())
+        self.sampleName.setText("%s" % filename.lower())
+        self.estimatedSizeLabel.setText("Estimated size in ROM: %.2f MB" % estimate_audio_size(self.selectedSoundFile))
+
+        # Enable all options
+        self.toggle_import_options(True)
+        self.panningTabWidget.setCurrentIndex(0)
+
 
     # Load new sound file
     def select_sound_file_button_pressed(self):
@@ -317,56 +369,7 @@ class StreamedMusicTab(MainTab):
         dialog.setNameFilter("AIFF files (*.aiff)")
         dialog.setViewMode(QFileDialog.ViewMode.Detail)
         if dialog.exec() == QFileDialog.DialogCode.Accepted:
-            self.selectedSoundFile = dialog.selectedFiles()[0]
-
-            # Attempt to open file
-            try:
-                aiffFile = aifc.open(self.selectedSoundFile, "r")
-            except aifc.Error:
-                # Invalid AIFF file
-                self.selectedFileLabel.setText("Selected audio file: None")
-                self.estimatedSizeLabel.setText("")
-                self.sequenceName.setText("")
-                self.sequenceFilename.setText("")
-                self.soundbankName.setText("")
-                self.sampleName.setText("")
-                self.loopBegin.setText("")
-                self.loopEnd.setText("")
-                self.toggle_import_options(False)
-                self.set_info_message("Error: Invalid AIFF file", COLOR_RED)
-                return
-            self.set_info_message("", COLOR_WHITE)
-
-            self.selectedFileLabel.setText("Selected audio file: " + os.path.basename(self.selectedSoundFile))
-
-            # Determine number of channels and initialise notebook for panning tabs
-            self.resize_panning_notebook(aiffFile.getnchannels())
-            if aiffFile.getnchannels() == 2:
-                self.pans[0][1].setValue(-63)
-                self.pans[1][1].setValue(63)
-            else:
-                for i in range(len(self.pans)):
-                    self.pans[i][1].setValue(0)
-
-            self.panning_changed(None)
-            aiffFile.close()
-            
-            # Initialise other data fields
-            self.loopBegin.setText("0")
-            self.loopEnd.setText(str(aiffFile.getnframes()))
-            filename = os.path.splitext(os.path.basename(self.selectedSoundFile))[0].replace(' ', '_')
-            self.sequenceName.setText("SEQ_%s" % filename.upper())
-            # If a vanilla sequence, don't change the sequence filename to be safe
-            if not (self.currentSeqId > 0 and self.currentSeqId <= 0x22):
-                self.sequenceFilename.setText("%s" % filename.lower())
-
-            self.soundbankName.setText("%s" % filename.lower())
-            self.sampleName.setText("%s" % filename.lower())
-            self.estimatedSizeLabel.setText("Estimated size in ROM: %.2f MB" % estimate_audio_size(self.selectedSoundFile))
-
-            # Enable all options
-            self.toggle_import_options(True)
-            self.panningTabWidget.setCurrentIndex(0)
+            self.set_audio_file(dialog.selectedFiles()[0])
 
 
     # Toggle the loop options on or off whenever the loop checkbox is modified

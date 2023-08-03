@@ -88,8 +88,14 @@ class MainWindow(QWidget):
 
     # Add a new tab to the main page notebook
     def add_tab(self, tabClass, text):
-        newTab = tabClass(decomp)
+        newTab = tabClass(self, decomp)
         self.tabWidget.addTab(newTab, text)
+        self.tabs.append(newTab)
+
+
+    def set_audio_file(self, path):
+        for tab in self.tabs:
+            tab.set_audio_file(path)
 
 
 # The frame that displays the current decomp directory

@@ -265,7 +265,6 @@ class ConvertAudioTab(MainTab):
         # Check if output path is valid
         if not os.path.isdir(os.path.dirname(self.outputPath.text())):
             os.makedirs(os.path.dirname(self.outputPath.text()))
-            return
         
         inputFile = av.open(self.inputFile)
         outputFile = av.open(self.outputPath.text(), mode="w")
@@ -293,4 +292,5 @@ class ConvertAudioTab(MainTab):
         inputFile.close()
         outputFile.close()
 
+        self.mainWindow.set_audio_file(self.outputPath.text())
         self.set_info_message("Success!", COLOR_GREEN)
