@@ -31,8 +31,22 @@ if ! command_exists python; then
 fi
 
 # Install Python dependencies
-python3 -m pip install PyQt6
-python3 -m pip install av
+if command_exists pacman; then
+    if ! pacman -Q python-pyqt6 &>/dev/null; then
+        sudo pacman -S python-pyqt6
+    fi
+    if ! pacman -Q python-av &>/dev/null; then
+        temp_folder=$(mktemp -d)
+        wget -O "$temp_folder/PKGBUILD" "https://aur.archlinux.org/cgit/aur.git/plain/PKGBUILD?h=python-av"
+        cd "$temp_folder"
+        makepkg -si
+        cd -
+        rm -rf "$temp_folder"
+    fi
+else
+    python3 -m pip install PyQt6
+    python3 -m pip install av
+fi
 
 # Run GUI
 python3 src/gui/gui_main.py
