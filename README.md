@@ -8,11 +8,11 @@ This is a GUI and command line tool for importing and managing streamed audio se
 
 ### Windows
 
-Run the file named  `windows.bat`. If Python is not already installed on your system, it will be installed first. This will open up the GUI for the tool. Alternatively, you can run `src/gui/main.py` from the command line or from a Python IDE.
+Run the file named  `windows.bat`. If Python is not already installed on your system, it will be installed first. This will open up the GUI for the tool. Alternatively, you can run `src/gui/gui_main.py` from the command line or from a Python IDE.
 
 ### Linux
 
-Run the script named `linux.sh`. This will also install Python and open the GUI. Alternatively, you can run `src/gui/main.py` from the command line or from a Python IDE.
+Run the script named `linux.sh`. This will also install Python and open the GUI. Alternatively, you can run `src/gui/gui_main.py` from the command line or from a Python IDE.
 
 ## Using the Tool
 
