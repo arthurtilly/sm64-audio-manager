@@ -20,11 +20,8 @@ def append_parent_dir():
 class MainTab(QWidget):
     def __init__(self, decomp):
         super().__init__()
-        self.switch_decomp(decomp)
-        self.create_page()
-
-    def switch_decomp(self, decomp):
         self.decomp = decomp
+        self.create_page()
 
     def create_page():
         pass

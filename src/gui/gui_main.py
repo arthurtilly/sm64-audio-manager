@@ -92,13 +92,6 @@ class MainWindow(QWidget):
         self.tabWidget.addTab(newTab, text)
 
 
-    # Switch the decomp directory for all tabs and reload anything relying on decomp
-    def switch_decomp(self, decomp):
-        pass
-        #for tab in self.tabs:
-            #tab.switch_decomp(decomp)
-
-
 # The frame that displays the current decomp directory
 class DecompBar(QWidget):
     def __init__(self, parent):
@@ -150,13 +143,15 @@ def change_decomp_folder():
         save_persistent()
         decomp = folder
         window.switch_page(MainWindow.create_main_page)
-        window.switch_decomp(decomp)
         window.bottomBar.decompTextLabel.setText("Decomp directory: %s" % decomp)
 
-#bottomFrameManager = BottomFrameManager(window)
 
 window = MainWindow()
 window.setWindowTitle("SM64 Audio Manager")
 window.resize(700, 450)
+# Set icon
+icon = QIcon()
+icon.addFile("src/gui/icon.ico", QtCore.QSize(32, 32))
+window.setWindowIcon(icon)
 window.show()
 sys.exit(app.exec())

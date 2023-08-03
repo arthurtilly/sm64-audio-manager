@@ -15,19 +15,11 @@ from misc import *
 from main import *
 
 class StreamedMusicTab(MainTab):
-    def switch_decomp(self, decomp):
-        self.decomp = decomp
-        self.sequences = scan_all_sequences(decomp)
-        # If seq list already exists, update it
-        if hasattr(self, "seqList"):
-            self.load_seq_list()
-            self.seqList.setCurrentItem(self.seqList.topLevelItem(0))
-            self.seqlist_selection_changed()
-        self.currentSeqId = 0
-
-
     # Create the regular page for importing sequences
     def create_page(self):
+        self.sequences = scan_all_sequences(self.decomp)
+        self.currentSeqId = 0
+
         self.layout = QHBoxLayout()
         self.layout.setContentsMargins(0, 0, 0, 0)
         self.layout.setSpacing(0)
@@ -118,7 +110,7 @@ class StreamedMusicTab(MainTab):
         self.loopBegin = QLineEdit()
         self.loopBegin.setAlignment(QtCore.Qt.AlignmentFlag.AlignRight)
         self.loopBegin.setMaximumWidth(80)
-        self.loopBegin.setText("0")
+        self.loopBegin.setText("")
         self.loopBegin.setValidator(QDoubleValidator())
         loopInfoLayout.addWidget(self.loopBegin)
         loopInfoLayout.setStretchFactor(self.loopBegin, 0)
@@ -132,7 +124,7 @@ class StreamedMusicTab(MainTab):
         self.loopEnd = QLineEdit()
         self.loopEnd.setAlignment(QtCore.Qt.AlignmentFlag.AlignRight)
         self.loopEnd.setMaximumWidth(80)
-        self.loopEnd.setText("0")
+        self.loopEnd.setText("")
         self.loopEnd.setValidator(QDoubleValidator())
         loopInfoLayout.addWidget(self.loopEnd)
         loopInfoLayout.setStretchFactor(self.loopEnd, 0)
@@ -359,6 +351,7 @@ class StreamedMusicTab(MainTab):
             aiffFile.close()
             
             # Initialise other data fields
+            self.loopBegin.setText("0.0")
             self.loopEnd.setText("%.4f" % (aiffFile.getnframes() / aiffFile.getframerate()))
             filename = os.path.splitext(os.path.basename(self.selectedSoundFile))[0].replace(' ', '_')
             self.sequenceName.setText("SEQ_%s" % filename.upper())
@@ -368,7 +361,7 @@ class StreamedMusicTab(MainTab):
 
             self.soundbankName.setText("%s" % filename.lower())
             self.sampleName.setText("%s" % filename.lower())
-            self.estimatedSizeLabel.setText("Estimated size: %.2f MB" % estimate_audio_size(self.selectedSoundFile))
+            self.estimatedSizeLabel.setText("Estimated size in ROM: %.2f MB" % estimate_audio_size(self.selectedSoundFile))
 
             # Enable all options
             self.toggle_import_options(True)
