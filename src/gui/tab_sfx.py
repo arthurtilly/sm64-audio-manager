@@ -54,152 +54,16 @@ class ImportSfxTab(MainTab):
         vsb = QScrollBar(QtCore.Qt.Orientation.Vertical)
         self.sfxList.setVerticalScrollBar(vsb)
     
-        optionsWidget = QWidget()
-        optionsLayout = QVBoxLayout()
-        optionsWidget.setLayout(optionsLayout)
-        self.layout.addWidget(optionsWidget)
-        self.layout.setStretchFactor(optionsWidget, 1)
-        optionsLayout.setSpacing(0)
+        optionsLayout = new_widget(self.layout, QVBoxLayout, spacing=5)
         optionsLayout.addStretch(1)
 
-        # Line 1: Select sfx
-
-        selectSoundFileWidget = QWidget()
-        selectSoundFileLayout = QGridLayout()
-        selectSoundFileLayout.setVerticalSpacing(0)
-        selectSoundFileWidget.setLayout(selectSoundFileLayout)
-        optionsLayout.addWidget(selectSoundFileWidget)
-        
-        spacer = QSpacerItem(0, 0, QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Minimum)
-        selectSoundFileLayout.addItem(spacer, 0, 0)
-    
-        # Label
-        self.selectedSoundFile = None
-        self.selectedFileLabel = QLabel(text="Selected audio file: None")
-        selectSoundFileLayout.addWidget(self.selectedFileLabel, 0, 1)
-
-        spacer = QSpacerItem(0, 0, QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Minimum)
-        selectSoundFileLayout.addItem(spacer, 0, 2)
-    
-        # Browse button
-        self.selectSoundFileButton = QPushButton(text="Browse...")
-        self.selectSoundFileButton.clicked.connect(self.select_sound_file_button_pressed)
-        selectSoundFileLayout.addWidget(self.selectSoundFileButton, 0, 3)
-        self.selectSoundFileButton.setSizePolicy(QSizePolicy.Policy.Fixed, QSizePolicy.Policy.Fixed)
-
-        spacer = QSpacerItem(0, 0, QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Minimum)
-        selectSoundFileLayout.addItem(spacer, 0, 4)
-
-        self.estimatedSizeLabel = QLabel(text="")
-        selectSoundFileLayout.addWidget(self.estimatedSizeLabel, 1, 1)
-
-
-        # Line 2: Set loop info
-
-        loopInfoWidget = QWidget()
-        loopInfoLayout = QHBoxLayout()
-        loopInfoWidget.setLayout(loopInfoLayout)
-        optionsLayout.addWidget(loopInfoWidget)
-
-        loopInfoLayout.addStretch(1)
-
-        # Loop checkbox
-        self.doLoop = QCheckBox(text="Loop")
-        self.doLoop.setChecked(True)
-        self.doLoop.stateChanged.connect(self.loop_checkbutton_pressed)
-        loopInfoLayout.addWidget(self.doLoop)
-        self.doLoop.setSizePolicy(QSizePolicy.Policy.Fixed, QSizePolicy.Policy.Fixed)
-
-        palette = self.doLoop.palette()
-        palette.setColor(QPalette.ColorRole.Base, self.palette().color(QPalette.ColorRole.Button))
-        self.doLoop.setPalette(palette)
-
-        loopInfoLayout.addStretch(1)
-
-        # Loop start
-        self.loopBeginLabel = QLabel(text="Loop start:")
-        loopInfoLayout.addWidget(self.loopBeginLabel)
-
-        self.loopBegin = QLineEdit()
-        self.loopBegin.setAlignment(QtCore.Qt.AlignmentFlag.AlignRight)
-        self.loopBegin.setMaximumWidth(80)
-        self.loopBegin.setText("")
-        self.loopBegin.setValidator(QIntValidator())
-        loopInfoLayout.addWidget(self.loopBegin)
-        loopInfoLayout.setStretchFactor(self.loopBegin, 0)
-
-        loopInfoLayout.addStretch(1)
-
-        # Loop end
-        self.loopEndLabel = QLabel(text="Loop end:")
-        loopInfoLayout.addWidget(self.loopEndLabel)
-
-        self.loopEnd = QLineEdit()
-        self.loopEnd.setAlignment(QtCore.Qt.AlignmentFlag.AlignRight)
-        self.loopEnd.setMaximumWidth(80)
-        self.loopEnd.setText("")
-        self.loopEnd.setValidator(QIntValidator())
-        loopInfoLayout.addWidget(self.loopEnd)
-        loopInfoLayout.setStretchFactor(self.loopEnd, 0)
-
-        loopInfoLayout.addStretch(1)
-
-        # Line 3: Frame for setting all sound defines
-        defineFrame = QFrame()
-        defineLayout = QVBoxLayout()
-        defineFrame.setLayout(defineLayout)
-        optionsLayout.addWidget(defineFrame)
-        defineLayout.addWidget(QLabel(text="Sound defines:"))
-
-        defineWidget = QWidget()
-        self.defineWidgetLayout = QGridLayout()
-        defineWidget.setLayout(self.defineWidgetLayout)
-        defineLayout.addWidget(defineWidget)
-
-        self.defineWidgetLayout.setColumnStretch(1, 5)
-        self.defineWidgetLayout.addWidget(QLabel(text=""), 0, 1)
-        self.defineWidgetLayout.setColumnStretch(2, 1)
-        self.defineWidgetLayout.addWidget(QLabel(text=""), 0, 5)
-        self.defineWidgetLayout.setColumnStretch(5, 1)
-
-        self.defines = []
-        self.add_define_row()
-
-        _, self.addDefineButton = add_centered_button_to_layout(defineLayout, "Add...", self.add_define_row)
-
-        defineFrame.setFrameShape(QFrame.Shape.StyledPanel)
-
-
-        # Line 4: Name of sound
+        sampleFrame = self.create_sample_frame(optionsLayout)
+        defineFrame = self.create_define_frame(optionsLayout)
+        nameFrame = self.create_names_frame(optionsLayout)
 
         optionsLayout.addStretch(1)
 
-        nameWidget = QWidget()
-        nameLayout = QGridLayout()
-        nameWidget.setLayout(nameLayout)
-        optionsLayout.addWidget(nameWidget, alignment=QtCore.Qt.AlignmentFlag.AlignHCenter)
-
-        self.sequenceNameLabel = QLabel(text="Sound name:")
-        nameLayout.addWidget(self.sequenceNameLabel, 0, 0, alignment=QtCore.Qt.AlignmentFlag.AlignRight)
-        self.sequenceName = QLineEdit()
-        self.sequenceName.setText("")
-        self.sequenceName.setFixedWidth(170)
-        nameLayout.addWidget(self.sequenceName, 0, 1, alignment=QtCore.Qt.AlignmentFlag.AlignLeft)
-
-        # Line 5: Name of sample
-
-        self.sampleNameLabel = QLabel(text="Sample name:")
-        nameLayout.addWidget(self.sampleNameLabel, 3, 0, alignment=QtCore.Qt.AlignmentFlag.AlignRight)
-        self.sampleName = QLineEdit()
-        self.sampleName.setText("")
-        self.sampleName.setFixedWidth(170)
-        nameLayout.addWidget(self.sampleName, 3, 1, alignment=QtCore.Qt.AlignmentFlag.AlignLeft)
-
-
-        # Line 8: Import button
-
-        optionsLayout.addStretch(1)
-
+        # Import button
         importWidget, self.importButton = add_centered_button_to_layout(optionsLayout, "Import!", self.import_pressed)
 
         self.importInfoLabel = QLabel(text="")
@@ -209,14 +73,180 @@ class ImportSfxTab(MainTab):
         optionsLayout.addStretch(1)
 
         self.toggableWidgets = (
-            loopInfoWidget,
-            nameWidget,
+            self.loopInfoLayout.parentWidget(),
+            defineFrame,
+            nameFrame,
             importWidget,
         )
 
         self.toggle_import_options(False)
 
 
+    # Create the frame for choosing a sample to import
+    def create_sample_frame(self, layout):
+        sampleFrame = QFrame()
+        sampleLayout = QVBoxLayout()
+        sampleFrame.setLayout(sampleLayout)
+        layout.addWidget(sampleFrame)
+        sampleFrame.setFrameShape(QFrame.Shape.StyledPanel)
+
+        # First line: Widget for sample selection
+        selectSoundFileLayout = new_widget(sampleLayout, QHBoxLayout)
+        selectSoundFileLayout.addStretch(1)
+    
+        # Label
+        self.selectedSoundFile = None
+        self.selectedFileLabel = QLabel(text="Selected audio file: None")
+        selectSoundFileLayout.addWidget(self.selectedFileLabel)
+        selectSoundFileLayout.addStretch(1)
+    
+        # Browse button
+        self.selectSoundFileButton = QPushButton(text="Browse...")
+        self.selectSoundFileButton.clicked.connect(self.select_sound_file_button_pressed)
+        selectSoundFileLayout.addWidget(self.selectSoundFileButton)
+        self.selectSoundFileButton.setSizePolicy(QSizePolicy.Policy.Fixed, QSizePolicy.Policy.Fixed)
+        selectSoundFileLayout.addStretch(1)
+
+        # Second line: Set loop data
+        self.loopInfoLayout = new_widget(sampleLayout, QHBoxLayout)
+        self.loopInfoLayout.addStretch(1)
+
+        # Loop checkbox
+        self.doLoop = QCheckBox(text="Loop")
+        self.doLoop.setChecked(True)
+        self.doLoop.stateChanged.connect(self.loop_checkbutton_pressed)
+        self.loopInfoLayout.addWidget(self.doLoop)
+        self.doLoop.setSizePolicy(QSizePolicy.Policy.Fixed, QSizePolicy.Policy.Fixed)
+
+        palette = self.doLoop.palette()
+        palette.setColor(QPalette.ColorRole.Base, self.palette().color(QPalette.ColorRole.Button))
+        self.doLoop.setPalette(palette)
+
+        self.loopInfoLayout.addStretch(1)
+
+        # Loop start
+        self.loopBeginLabel = QLabel(text="Loop start:")
+        self.loopInfoLayout.addWidget(self.loopBeginLabel)
+
+        self.loopBegin = QLineEdit()
+        self.loopBegin.setAlignment(QtCore.Qt.AlignmentFlag.AlignRight)
+        self.loopBegin.setMaximumWidth(80)
+        self.loopBegin.setText("")
+        self.loopBegin.setValidator(QIntValidator())
+        self.loopInfoLayout.addWidget(self.loopBegin)
+        self.loopInfoLayout.setStretchFactor(self.loopBegin, 0)
+
+        self.loopInfoLayout.addStretch(1)
+
+        # Loop end
+        self.loopEndLabel = QLabel(text="Loop end:")
+        self.loopInfoLayout.addWidget(self.loopEndLabel)
+
+        self.loopEnd = QLineEdit()
+        self.loopEnd.setAlignment(QtCore.Qt.AlignmentFlag.AlignRight)
+        self.loopEnd.setMaximumWidth(80)
+        self.loopEnd.setText("")
+        self.loopEnd.setValidator(QIntValidator())
+        self.loopInfoLayout.addWidget(self.loopEnd)
+        self.loopInfoLayout.setStretchFactor(self.loopEnd, 0)
+
+        self.loopInfoLayout.addStretch(1)
+
+        return sampleFrame
+    
+
+    # Create the frame for the sound define data
+    def create_define_frame(self, layout):
+        defineFrame = QFrame()
+        self.defineLayout = QVBoxLayout()
+        defineFrame.setLayout(self.defineLayout)
+        layout.addWidget(defineFrame)
+        # Frame label
+        self.defineLayout.addWidget(QLabel(text="Sound defines:"))
+        defineFrame.setFrameShape(QFrame.Shape.StyledPanel)
+
+        self.defines = []
+        self.add_define_row()
+
+        # Button for adding new row
+        _, self.addDefineButton = add_centered_button_to_layout(self.defineLayout, "Add...", self.add_define_row)
+
+        return defineFrame
+    
+
+    # Create the frame for entering the sound and sample names
+    def create_names_frame(self, layout):
+        nameFrame = QFrame()
+        nameFrame.setFrameShape(QFrame.Shape.StyledPanel)
+        nameLayout = QVBoxLayout()
+        nameLayout.setSpacing(0)
+        nameFrame.setLayout(nameLayout)
+        layout.addWidget(nameFrame)
+    
+        nameWidgetLayout = new_widget(nameLayout, QGridLayout, alignment=QtCore.Qt.AlignmentFlag.AlignHCenter)
+
+        # Sound name
+        self.soundNameLabel = QLabel(text="Sound name:")
+        nameWidgetLayout.addWidget(self.soundNameLabel, 0, 0, alignment=QtCore.Qt.AlignmentFlag.AlignRight)
+        self.soundName = QLineEdit()
+        self.soundName.setText("")
+        self.soundName.setFixedWidth(170)
+        nameWidgetLayout.addWidget(self.soundName, 0, 1, alignment=QtCore.Qt.AlignmentFlag.AlignLeft)
+
+        # Sample name
+        self.sampleNameLabel = QLabel(text="Sample name:")
+        nameWidgetLayout.addWidget(self.sampleNameLabel, 1, 0, alignment=QtCore.Qt.AlignmentFlag.AlignRight)
+        self.sampleName = QLineEdit()
+        self.sampleName.setText("")
+        self.sampleName.setFixedWidth(170)
+        nameWidgetLayout.addWidget(self.sampleName, 1, 1, alignment=QtCore.Qt.AlignmentFlag.AlignLeft)
+
+        pitchLayout = new_widget(nameLayout, QHBoxLayout, alignment=QtCore.Qt.AlignmentFlag.AlignHCenter)
+
+        pitchLabel = QLabel(text="Pitch:")
+        pitchLayout.addWidget(pitchLabel)
+        self.pitch = QSpinBox()
+        self.pitch.setMinimum(0)
+        self.pitch.setMaximum(127)
+        self.pitch.setValue(39)
+        pitchLayout.addWidget(self.pitch)
+
+        return nameFrame
+
+
+    def add_define_row(self):
+        defineLayout = new_widget(self.defineLayout, QHBoxLayout)
+        defineLayout.setContentsMargins(0, 0, 0, 0)
+        defineLayout.addStretch(1)
+
+        trashButton = QPushButton(text="X")
+        #trashButton.clicked.connect(lambda: self.remove_define_row(i))
+        trashButton.setFixedSize(25, 25)
+        defineLayout.addWidget(trashButton)
+
+        defineName = QLineEdit()
+        defineLayout.addWidget(defineName)
+        defineLayout.addStretch(1)
+
+        defineLayout.addWidget(QLabel(text="Priority:"))
+
+        definePriority = QSpinBox()
+        definePriority.setAlignment(QtCore.Qt.AlignmentFlag.AlignRight)
+        defineLayout.addWidget(definePriority)
+        definePriority.setMinimum(0)
+        definePriority.setMaximum(255)
+        definePriority.setValue(128)
+        definePriority.setFixedWidth(50)
+        defineLayout.addStretch(1)
+
+        defineFlags = QPushButton(text="Set flags...")
+        #defineFlags.clicked.connect()
+        defineLayout.addWidget(defineFlags)
+        defineLayout.addStretch(1)
+        self.defines.append((defineName, definePriority, defineFlags))
+
+
+    # Parse seq00 and load the full chunk dictionary
     def load_chunk_dictionary(self):
         self.chunkDictionary = ChunkDictionary(os.path.join(self.decomp, "sound", "sequences", "00_sound_player.s"))
 
@@ -241,31 +271,6 @@ class ImportSfxTab(MainTab):
         palette = self.importInfoLabel.palette()
         palette.setColor(QPalette.ColorRole.WindowText, colour)
         self.importInfoLabel.setPalette(palette)
-
-
-    def add_define_row(self):
-        i = len(self.defines)
-
-        trashButton = QPushButton(text="X")
-        trashButton.clicked.connect(lambda: self.remove_define_row(i))
-        trashButton.setFixedSize(25, 25)
-        self.defineWidgetLayout.addWidget(trashButton, i, 0)
-
-        defineName = QLineEdit()
-        self.defineWidgetLayout.addWidget(defineName, i, 1)
-
-        self.defineWidgetLayout.addWidget(QLabel(text="Priority:"), i, 3)
-
-        definePriority = QLineEdit()
-        definePriority.setAlignment(QtCore.Qt.AlignmentFlag.AlignRight)
-        self.defineWidgetLayout.addWidget(definePriority, i, 4)
-        definePriority.setValidator(QIntValidator(0, 255))
-        definePriority.setFixedWidth(50)
-
-        defineFlags = QPushButton(text="Set flags...")
-        defineFlags.clicked.connect(lambda: self.set_flags_button_pressed(i))
-        self.defineWidgetLayout.addWidget(defineFlags, i, 6)
-        self.defines.append((defineName, definePriority, defineFlags))
 
 
     # Import a sequence into decomp

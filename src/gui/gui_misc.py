@@ -2,6 +2,7 @@ import sys
 import os
 from PyQt6.QtWidgets import *
 from PyQt6.QtGui import *
+from PyQt6 import QtCore
 
 
 COLOR_WHITE = QColor(255, 255, 255)
@@ -30,6 +31,19 @@ def add_centered_button_to_layout(layout, text, func):
     newLayout.addStretch(1)
 
     return (widget, button)
+
+
+def new_widget(layout, layoutType, alignment=None, spacing=None):
+    widget = QWidget()
+    newLayout = layoutType()
+    widget.setLayout(newLayout)
+    if alignment is not None:
+        layout.addWidget(widget, alignment=alignment)
+    else:
+        layout.addWidget(widget)
+    if spacing is not None:
+        newLayout.setSpacing(spacing)
+    return newLayout
 
 
 # Base class for a tab in the main window notebook

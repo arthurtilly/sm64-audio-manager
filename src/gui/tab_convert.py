@@ -15,15 +15,12 @@ class ConvertAudioTab(MainTab):
 
         self.layout = QVBoxLayout()
         self.setLayout(self.layout)
+        self.layout.setContentsMargins(0, 0, 0, 0)
         self.layout.setSpacing(0)
         self.layout.addStretch(2)
 
-        # First line: Select sfx
-        selectSoundFileWidget = QWidget()
-        selectSoundFileLayout = QHBoxLayout()
-        selectSoundFileWidget.setLayout(selectSoundFileLayout)
-        self.layout.addWidget(selectSoundFileWidget)
-        
+        # Line 1: Select sfx
+        selectSoundFileLayout = new_widget(self.layout, QHBoxLayout)
         selectSoundFileLayout.addStretch(3)
     
         # Label
@@ -41,12 +38,8 @@ class ConvertAudioTab(MainTab):
 
         selectSoundFileLayout.addStretch(3)
 
-        # 2nd line: Input format, length, sample rate and channels
-        inputFormatWidget = QWidget()
-        self.inputFormatLayout = QHBoxLayout()
-        inputFormatWidget.setLayout(self.inputFormatLayout)
-        self.layout.addWidget(inputFormatWidget)
-        self.inputFormatLayout.setSpacing(5)
+        # Line 2: Input format, length, sample rate and channels
+        self.inputFormatLayout = new_widget(self.layout, QHBoxLayout, spacing=5)
 
         self.inputLabelText = QLabel(text="Input format:")
         self.inputLabel = QLabel(text="-   ")
@@ -73,15 +66,12 @@ class ConvertAudioTab(MainTab):
 
         self.layout.addStretch(1)
 
-        # 3rd line: Output sample rate and mix to mono
+        # Line 3: Output sample rate and mix to mono
 
-        outputFormatWidget = QWidget()
-        self.outputFormatLayout = QHBoxLayout()
-        outputFormatWidget.setLayout(self.outputFormatLayout)
-        self.layout.addWidget(outputFormatWidget)
-
+        self.outputFormatLayout = new_widget(self.layout, QHBoxLayout)
         self.outputFormatLayout.addStretch(3)
         self.outputFormatLayout.addWidget(QLabel(text="Output sample rate:"), alignment=QtCore.Qt.AlignmentFlag.AlignRight)
+
         self.outputSampleRate = QLineEdit(text="")
         self.outputSampleRate.setFixedWidth(50)
         self.outputSampleRate.setValidator(QIntValidator(1, 100000))
@@ -100,13 +90,10 @@ class ConvertAudioTab(MainTab):
 
         self.outputFormatLayout.addStretch(3)
 
-        # 4th line: Output path
-        outputPathWidget = QWidget()
-        self.outputPathLayout = QHBoxLayout()
-        outputPathWidget.setLayout(self.outputPathLayout)
-        self.layout.addWidget(outputPathWidget)
-
+        # Line 4: Output path
+        self.outputPathLayout = new_widget(self.layout, QHBoxLayout)
         self.outputPathLayout.addStretch(1)
+
         self.outputPathLayout.addWidget(QLabel(text="Output path:"), alignment=QtCore.Qt.AlignmentFlag.AlignRight)
         self.outputPath = QLineEdit(text="")
         self.outputPath.setFixedWidth(300)
@@ -118,17 +105,17 @@ class ConvertAudioTab(MainTab):
         self.outputBrowseButton.setSizePolicy(QSizePolicy.Policy.Fixed, QSizePolicy.Policy.Fixed)
         self.outputPathLayout.addStretch(1)
 
-        # 5th line: Estimated ROM size
+        # Line 5: Estimated ROM size
         self.estimatedSizeLabel = QLabel(text="Estimated size in ROM: -")
         self.estimatedSizeLabel.setAlignment(QtCore.Qt.AlignmentFlag.AlignCenter)
         self.layout.addWidget(self.estimatedSizeLabel)
 
         self.layout.addStretch(1)
 
-        # 6th line: Convert button
+        # Convert button
         convertWidget, self.convertButton = add_centered_button_to_layout(self.layout, "Convert!", self.convert_pressed)
 
-        # 7th line: Import info
+        # Import info
         self.importInfoLabel = QLabel(text="")
         self.importInfoLabel.setAlignment(QtCore.Qt.AlignmentFlag.AlignCenter)
         self.layout.addWidget(self.importInfoLabel)
@@ -136,9 +123,9 @@ class ConvertAudioTab(MainTab):
         self.layout.addStretch(2)
 
         self.toggleableWidgets = (
-            inputFormatWidget,
-            outputFormatWidget,
-            outputPathWidget,
+            self.inputFormatLayout.parentWidget(),
+            self.outputFormatLayout.parentWidget(),
+            self.outputPathLayout.parentWidget(),
             self.estimatedSizeLabel,
             convertWidget
         )
