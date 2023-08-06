@@ -32,6 +32,7 @@ class ImportSfxTab(MainTab):
     # Create the regular page for importing sequences
     def create_page(self):
         self.load_chunk_dictionary()
+        self.selectedChunk = None
 
         self.layout = QHBoxLayout()
         self.layout.setContentsMargins(0, 0, 0, 0)
@@ -43,7 +44,7 @@ class ImportSfxTab(MainTab):
         self.sfxList.setFixedWidth(250)
 
 
-        self.load_seq_list()
+        self.load_sfx_list()
         self.sfxList.setCurrentItem(self.sfxList.topLevelItem(0))
 
         self.sfxList.itemSelectionChanged.connect(self.sfxlist_selection_changed)
@@ -72,14 +73,18 @@ class ImportSfxTab(MainTab):
 
         optionsLayout.addStretch(1)
 
-        self.toggableWidgets = (
+        self.toggableImportWidgets = (
             self.loopInfoLayout.parentWidget(),
-            defineFrame,
             nameFrame,
             importWidget,
         )
 
+        self.toggleableDefineWidgets = (
+            defineFrame,
+        )
+
         self.toggle_import_options(False)
+        self.toggle_define_options(False)
 
 
     # Create the frame for choosing a sample to import
@@ -166,6 +171,7 @@ class ImportSfxTab(MainTab):
         defineFrame.setFrameShape(QFrame.Shape.StyledPanel)
 
         self.defines = []
+        self.defineEntryLayout = new_widget(self.defineLayout, QVBoxLayout)
         self.add_define_row()
 
         # Button for adding new row
@@ -215,7 +221,7 @@ class ImportSfxTab(MainTab):
 
 
     def add_define_row(self):
-        defineLayout = new_widget(self.defineLayout, QHBoxLayout)
+        defineLayout = new_widget(self.defineEntryLayout, QHBoxLayout)
         defineLayout.setContentsMargins(0, 0, 0, 0)
         defineLayout.addStretch(1)
 
@@ -226,6 +232,7 @@ class ImportSfxTab(MainTab):
 
         defineName = QLineEdit()
         defineLayout.addWidget(defineName)
+        defineName.setFixedWidth(200)
         defineLayout.addStretch(1)
 
         defineLayout.addWidget(QLabel(text="Priority:"))
@@ -243,7 +250,7 @@ class ImportSfxTab(MainTab):
         #defineFlags.clicked.connect()
         defineLayout.addWidget(defineFlags)
         defineLayout.addStretch(1)
-        self.defines.append((defineName, definePriority, defineFlags))
+        self.defines.append((defineLayout.parentWidget(), defineName, definePriority, defineFlags))
 
 
     # Parse seq00 and load the full chunk dictionary
@@ -253,7 +260,11 @@ class ImportSfxTab(MainTab):
 
     # Switch between having all options enabled or disabled
     def toggle_import_options(self, enabled):
-        for widget in self.toggableWidgets:
+        for widget in self.toggableImportWidgets:
+            widget.setEnabled(enabled)
+
+    def toggle_define_options(self, enabled):
+        for widget in self.toggleableDefineWidgets:
             widget.setEnabled(enabled)
 
 
@@ -295,11 +306,35 @@ class ImportSfxTab(MainTab):
 
     # When a new sequence is selected, update some of the info on the right
     def sfxlist_selection_changed(self):
-        pass
+        item = self.sfxList.currentItem()
+        data = item.data(0, QtCore.Qt.ItemDataRole.UserRole)
+        if data is None:
+            self.selectedChunk = None
+            self.toggle_define_options(False)
+            return
+        
+        self.selectedChunk = data[0]
+        # Clear all define widgets
+        while len(self.defines) > 0:
+            self.defineEntryLayout.removeWidget(self.defines[-1][0])
+            self.defines.pop()
+        
+        sfxs = get_sfx_defines_from_id(self.decomp, data[1], data[2])
+        if len(sfxs) == 0:
+            self.add_define_row()
+            self.toggle_define_options(False)
+            return
+        
+        self.toggle_define_options(True)
+        for sfx in sfxs:
+            self.add_define_row()
+            self.defines[-1][1].setText(sfx.define)
+            self.defines[-1][2].setValue(sfx.priority)
+
 
 
     # Reload the sound effect list widget
-    def load_seq_list(self):
+    def load_sfx_list(self):
         # Check if the sequence list tree widget is already loaded and clear it
         if len(self.sfxList.children()) > 0:
             self.sfxList.clear()
@@ -313,8 +348,9 @@ class ImportSfxTab(MainTab):
             # Add children for each sfx
             tableChunk = self.chunkDictionary.get_channel_table_chunk(chanID)
             allSfx = self.chunkDictionary.get_all_sound_refs_from_channel(tableChunk)
-            for sfx in allSfx:
+            for i, sfx in enumerate(allSfx):
                 sfxItem = QTreeWidgetItem(channelItem)
                 sfxItem.setText(0, sfx.name[1:])
+                sfxItem.setData(0, QtCore.Qt.ItemDataRole.UserRole, (sfx, chanID, i))
 
 
