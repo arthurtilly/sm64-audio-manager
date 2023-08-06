@@ -46,16 +46,51 @@ class StreamedMusicTab(MainTab):
         optionsWidget.setLayout(optionsLayout)
         self.layout.addWidget(optionsWidget)
         self.layout.setStretchFactor(optionsWidget, 1)
-        optionsLayout.setSpacing(0)
+        optionsLayout.setSpacing(5)
         optionsLayout.addStretch(1)
 
-        # First line: Select sfx
+        sampleFrame = self.create_sample_frame(optionsLayout)
+        panningFrame = self.create_panning_frame(optionsLayout)
 
+        # Lines 4, 5, 6, 7: Set sequence name, filename, soundbank name and sample name
+
+        nameFrame = self.create_names_frame(optionsLayout)
+
+        # Line 8: Import button
+
+        optionsLayout.addStretch(1)
+
+        importWidget, self.importButton = add_centered_button_to_layout(optionsLayout, "Import!", self.import_pressed)
+
+        self.importInfoLabel = QLabel(text="")
+        self.importInfoLabel.setAlignment(QtCore.Qt.AlignmentFlag.AlignCenter)
+        optionsLayout.addWidget(self.importInfoLabel)
+
+        optionsLayout.addStretch(1)
+
+        self.toggableWidgets = (
+            self.loopInfoWidget,
+            panningFrame,
+            nameFrame,
+            importWidget,
+        )
+
+        self.toggle_import_options(False)
+
+
+    def create_sample_frame(self, layout):
+        sampleFrame = QFrame()
+        sampleLayout = QVBoxLayout()
+        sampleFrame.setLayout(sampleLayout)
+        layout.addWidget(sampleFrame)
+        sampleFrame.setFrameShape(QFrame.Shape.StyledPanel)
+
+        # First line: Widget for sample selection
         selectSoundFileWidget = QWidget()
         selectSoundFileLayout = QGridLayout()
         selectSoundFileLayout.setVerticalSpacing(0)
         selectSoundFileWidget.setLayout(selectSoundFileLayout)
-        optionsLayout.addWidget(selectSoundFileWidget)
+        sampleLayout.addWidget(selectSoundFileWidget)
         
         spacer = QSpacerItem(0, 0, QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Minimum)
         selectSoundFileLayout.addItem(spacer, 0, 0)
@@ -81,12 +116,12 @@ class StreamedMusicTab(MainTab):
         selectSoundFileLayout.addWidget(self.estimatedSizeLabel, 1, 1)
 
 
-        # Second line: Set loop info
+        # Second line: Set loop data
 
-        loopInfoWidget = QWidget()
+        self.loopInfoWidget = QWidget()
         loopInfoLayout = QHBoxLayout()
-        loopInfoWidget.setLayout(loopInfoLayout)
-        optionsLayout.addWidget(loopInfoWidget)
+        self.loopInfoWidget.setLayout(loopInfoLayout)
+        sampleLayout.addWidget(self.loopInfoWidget)
 
         loopInfoLayout.addStretch(1)
 
@@ -131,93 +166,70 @@ class StreamedMusicTab(MainTab):
 
         loopInfoLayout.addStretch(1)
 
-        # Third line: Set panning
+        return sampleFrame
+
+
+    def create_panning_frame(self, layout):
+        panningFrame = QFrame()
+        panningFrame.setFrameShape(QFrame.Shape.StyledPanel)
+        panningLayout = QVBoxLayout()
+        panningFrame.setLayout(panningLayout)
+        layout.addWidget(panningFrame)
+        panningLayout.addWidget(QLabel(text="Panning:"))
+
         panningWidget = QWidget()
-        panningLayout = QHBoxLayout()
-        panningWidget.setLayout(panningLayout)
-        optionsLayout.addWidget(panningWidget)
-
-        panningLayout.addStretch(1)
-
-        self.panningTabWidget = QTabWidget()
-        panningLayout.addWidget(self.panningTabWidget)
-        self.panningTabWidget.setSizePolicy(QSizePolicy.Policy.Fixed, QSizePolicy.Policy.Fixed)
-
-        panningLayout.addStretch(1)
+        self.panningWidgetLayout = QGridLayout()
+        panningWidget.setLayout(self.panningWidgetLayout)
+        panningLayout.addWidget(panningWidget)
+        self.panningWidgetLayout.setVerticalSpacing(5)
 
         self.pans = []
-        self.create_panning_tab()
+        self.create_panning_row()
 
-        # Lines 4, 5, 6, 7: Set sequence name, filename, soundbank name and sample name
+        return panningFrame
 
-        optionsLayout.addStretch(1)
-
+    def create_names_frame(self, layout):
+        nameFrame = QFrame()
+        nameFrame.setFrameShape(QFrame.Shape.StyledPanel)
+        nameLayout = QVBoxLayout()
+        nameFrame.setLayout(nameLayout)
+        layout.addWidget(nameFrame)
+    
         nameWidget = QWidget()
-        nameLayout = QGridLayout()
-        nameWidget.setLayout(nameLayout)
-        optionsLayout.addWidget(nameWidget)
+        nameWidgetLayout = QGridLayout()
+        nameWidget.setLayout(nameWidgetLayout)
+        nameLayout.addWidget(nameWidget, alignment=QtCore.Qt.AlignmentFlag.AlignHCenter)
 
         self.sequenceNameLabel = QLabel(text="Sequence name:")
-        nameLayout.addWidget(self.sequenceNameLabel, 0, 0, alignment=QtCore.Qt.AlignmentFlag.AlignRight)
+        nameWidgetLayout.addWidget(self.sequenceNameLabel, 0, 0, alignment=QtCore.Qt.AlignmentFlag.AlignRight)
         self.sequenceName = QLineEdit()
         self.sequenceName.setText("")
         self.sequenceName.setFixedWidth(170)
-        nameLayout.addWidget(self.sequenceName, 0, 1, alignment=QtCore.Qt.AlignmentFlag.AlignLeft)
+        nameWidgetLayout.addWidget(self.sequenceName, 0, 1, alignment=QtCore.Qt.AlignmentFlag.AlignLeft)
 
         self.sequenceFilenameLabel = QLabel(text="Sequence filename:")
-        nameLayout.addWidget(self.sequenceFilenameLabel, 1, 0, alignment=QtCore.Qt.AlignmentFlag.AlignRight)
+        nameWidgetLayout.addWidget(self.sequenceFilenameLabel, 1, 0, alignment=QtCore.Qt.AlignmentFlag.AlignRight)
         self.sequenceFilename = QLineEdit()
         self.sequenceFilename.setText("")
         self.sequenceFilename.setFixedWidth(170)
         self.sequenceFilename.textChanged.connect(self.sequence_filename_changed)
-        nameLayout.addWidget(self.sequenceFilename, 1, 1, alignment=QtCore.Qt.AlignmentFlag.AlignLeft)
+        nameWidgetLayout.addWidget(self.sequenceFilename, 1, 1, alignment=QtCore.Qt.AlignmentFlag.AlignLeft)
 
         self.soundbankNameLabel = QLabel(text="Soundbank name:")
-        nameLayout.addWidget(self.soundbankNameLabel, 2, 0, alignment=QtCore.Qt.AlignmentFlag.AlignRight)
+        nameWidgetLayout.addWidget(self.soundbankNameLabel, 2, 0, alignment=QtCore.Qt.AlignmentFlag.AlignRight)
         self.soundbankName = QLineEdit()
         self.soundbankName.setText("")
         self.soundbankName.setFixedWidth(170)
-        nameLayout.addWidget(self.soundbankName, 2, 1, alignment=QtCore.Qt.AlignmentFlag.AlignLeft)
+        nameWidgetLayout.addWidget(self.soundbankName, 2, 1, alignment=QtCore.Qt.AlignmentFlag.AlignLeft)
 
         self.sampleNameLabel = QLabel(text="Sample name:")
-        nameLayout.addWidget(self.sampleNameLabel, 3, 0, alignment=QtCore.Qt.AlignmentFlag.AlignRight)
+        nameWidgetLayout.addWidget(self.sampleNameLabel, 3, 0, alignment=QtCore.Qt.AlignmentFlag.AlignRight)
         self.sampleName = QLineEdit()
         self.sampleName.setText("")
         self.sampleName.setFixedWidth(170)
-        nameLayout.addWidget(self.sampleName, 3, 1, alignment=QtCore.Qt.AlignmentFlag.AlignLeft)
+        nameWidgetLayout.addWidget(self.sampleName, 3, 1, alignment=QtCore.Qt.AlignmentFlag.AlignLeft)
 
-
-        # Line 8: Import button
-
-        optionsLayout.addStretch(1)
-
-        importWidget = QWidget()
-        importLayout = QHBoxLayout()
-        importWidget.setLayout(importLayout)
-        optionsLayout.addWidget(importWidget)
-
-        importLayout.addStretch(1)
-        self.importButton = QPushButton(text="Import")
-        self.importButton.clicked.connect(self.import_pressed)
-        self.importButton.setSizePolicy(QSizePolicy.Policy.Fixed, QSizePolicy.Policy.Fixed)
-        importLayout.addWidget(self.importButton)
-        importLayout.addStretch(1)
-
-        self.importInfoLabel = QLabel(text="")
-        self.importInfoLabel.setAlignment(QtCore.Qt.AlignmentFlag.AlignCenter)
-        optionsLayout.addWidget(self.importInfoLabel)
-
-        optionsLayout.addStretch(1)
-
-        self.toggableWidgets = (
-            loopInfoWidget,
-            panningWidget,
-            nameWidget,
-            importWidget,
-        )
-
-        self.toggle_import_options(False)
-
+        return nameFrame
 
 
     # Switch between having all options enabled or disabled
@@ -243,11 +255,15 @@ class StreamedMusicTab(MainTab):
 
 
     # Create a new tab for the panning of an audio channel
-    def create_panning_tab(self):
+    def create_panning_row(self):
         panningWidget = QWidget()
         panningLayout = QHBoxLayout()
         panningWidget.setLayout(panningLayout)
+        panningLayout.setContentsMargins(0, 0, 0, 0)
 
+        panningLayout.addStretch(1)
+        panningLayout.addWidget(QLabel(text="Channel " + str(len(self.pans) + 1)))
+        panningLayout.addStretch(1)
         panningLabel = QLabel("Pan: 0")
         panningLabel.setFixedWidth(45)
         panningLayout.addWidget(panningLabel)
@@ -258,20 +274,21 @@ class StreamedMusicTab(MainTab):
         panningSlider.setFixedWidth(200)
         panningSlider.valueChanged.connect(self.panning_changed)
         panningLayout.addWidget(panningSlider)
+        panningLayout.addStretch(1)
 
-        self.panningTabWidget.addTab(panningWidget, "Channel %d" % (len(self.pans)+1))
-        self.pans.append((panningLabel, panningSlider))
+        self.panningWidgetLayout.addWidget(panningWidget)
+        self.pans.append((panningWidget, panningLabel, panningSlider))
 
 
     # Make the notebook for the panning tabs have the exact right number of tabs
     def resize_panning_notebook(self, size):
         while len(self.pans) > size:
             # Remove the last tab
+            self.panningWidgetLayout.removeWidget(self.pans[-1][0])
             self.pans.pop()
-            self.panningTabWidget.removeTab(self.panningTabWidget.count()-1)
 
         while len(self.pans) < size:
-            self.create_panning_tab()
+            self.create_panning_row()
 
 
     # Import a sequence into decomp
@@ -280,7 +297,7 @@ class StreamedMusicTab(MainTab):
 
         # Calculate array of panning values
         panning = []
-        for _, slider in self.pans:
+        for _, _, slider in self.pans:
             panning.append(slider.value())
 
         # Determine which sequence ID to replace, or to add a new one
@@ -335,11 +352,11 @@ class StreamedMusicTab(MainTab):
         # Determine number of channels and initialise notebook for panning tabs
         self.resize_panning_notebook(aiffFile.getnchannels())
         if aiffFile.getnchannels() == 2:
-            self.pans[0][1].setValue(-63)
-            self.pans[1][1].setValue(63)
+            self.pans[0][2].setValue(-63)
+            self.pans[1][2].setValue(63)
         else:
             for i in range(len(self.pans)):
-                self.pans[i][1].setValue(0)
+                self.pans[i][2].setValue(0)
 
         self.panning_changed(None)
         aiffFile.close()
@@ -359,7 +376,6 @@ class StreamedMusicTab(MainTab):
 
         # Enable all options
         self.toggle_import_options(True)
-        self.panningTabWidget.setCurrentIndex(0)
 
 
     # Load new sound file
@@ -379,7 +395,7 @@ class StreamedMusicTab(MainTab):
 
     # Update the pan value display when the slider is changed
     def panning_changed(self, *args):
-        for label, slider in self.pans:
+        for _, label, slider in self.pans:
             label.setText("Pan: %d" % slider.value())
 
 

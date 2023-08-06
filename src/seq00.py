@@ -7,6 +7,8 @@ CHUNK_TYPE_CHANNEL_TABLE = 2 # Lookup table for the channels
 CHUNK_TYPE_LAYER = 3
 CHUNK_TYPE_ENVELOPE = 4
 
+ENTRY_CHUNK = "sequence_start"
+
 referenceCommands = (
     # Command            Has params    Has return   Expected type         Target type (None for end)
     ("seq_jump",         0,        False,       CHUNK_TYPE_SEQUENCE,      CHUNK_TYPE_SEQUENCE),
@@ -32,8 +34,6 @@ referenceCommands = (
     ("envelope_goto",    1,         False,       CHUNK_TYPE_ENVELOPE,      None),
     ("envelope_hang",    0,        False,       CHUNK_TYPE_ENVELOPE,      None),
 )
-
-chunkDictionary = {}
 
 class ReferenceCommand:
     def __init__(self, commandID, param=None, reference=None):
@@ -71,10 +71,10 @@ class ReferenceCommand:
     
 
     # Resolve command using chunk dictionary
-    def resolve_command(self):
+    def resolve_command(self, chunkDict):
         if not self.resolved:
-            if self.reference in chunkDictionary:
-                self.reference = chunkDictionary[self.reference]
+            if self.reference in chunkDict.dictionary:
+                self.reference = chunkDict.dictionary[self.reference]
                 self.resolved = True
             else:
                 raise ValueError("Error: Could not find chunk " + self.reference)
@@ -94,7 +94,6 @@ class SequencePlayerChunk:
 
     def add_child(self, child):
         if child is self: return
-        if child in self.children: return
         self.children.append(child)
         child.parents.append(self)
 
@@ -111,6 +110,7 @@ class SequencePlayerChunk:
         lineSplit = line.split(" ")
         for i, (cmd, params, hasReturn, expectedType, targetType) in enumerate(referenceCommands):
             if lineSplit[0] == cmd:
+                self.type = expectedType
                 j = 1
                 param = None
                 reference = None
@@ -133,112 +133,209 @@ class SequencePlayerChunk:
         return False
 
     # Resolve references for all lines
-    def resolve_references(self):
+    def resolve_references(self, chunkDict):
         for line in self.lines:
             if type(line) == ReferenceCommand and not line.resolved:
-                line.resolve_command()
+                line.resolve_command(chunkDict)
                 self.add_child(line.reference)
 
 
+class ChunkDictionary:
+    def __init__(self, seq00Path):
+        self.dictionary = {}
+        self.parse_sequence_player(seq00Path)
 
-def parse_sequence_player(path):
-    # Step 1: Parse file into chunks
-    with open(path, "r") as f:
-        line = None
-        while line != "sequence_start:\n":
-            line = f.readline()
 
-        currentChunk = SequencePlayerChunk("sequence_start", CHUNK_TYPE_SEQUENCE)
-        chunkDictionary["sequence_start"] = currentChunk
-        chunkHasEnded = False
+    # Load the chunk dictionary from seq00
+    def parse_sequence_player(self, path):
+        # Step 1: Parse file into chunks
+        with open(path, "r") as f:
+            line = None
+            while line != ("%s:\n" % ENTRY_CHUNK):
+                line = f.readline()
 
-        inIfdef = False
-        waitingForIfdef = False
+            currentChunk = SequencePlayerChunk(ENTRY_CHUNK, CHUNK_TYPE_SEQUENCE)
+            self.dictionary[ENTRY_CHUNK] = currentChunk
+            chunkHasEnded = False
 
-        while True:
-            line = f.readline()
-            if not line: break
-            line = line.strip()
-            if len(line) == 0: continue
+            inIfdef = False
+            waitingForIfdef = False
 
-            # Check if line is a label
-            if line[0] == ".":
-                if not line.split(" ")[0] in (".set", ".align", ".byte"):
-                    chunkName = line.split(":")[0]
-                    newChunk = SequencePlayerChunk(chunkName, CHUNK_TYPE_UNKNOWN)
-                    chunkDictionary[chunkName] = newChunk
+            while True:
+                line = f.readline()
+                if not line: break
+                line = line.strip()
+                if len(line) == 0: continue
 
-                    if not chunkHasEnded:
-                        # Old chunk can carry over into this chunk
-                        currentChunk.add_child(newChunk)
-                        currentChunk.followingChunk = newChunk
+                # Check if line is a label
+                if line[0] == ".":
+                    if not line.split(" ")[0] in (".set", ".align", ".byte"):
+                        chunkName = line.split(":")[0]
+                        newChunk = SequencePlayerChunk(chunkName, CHUNK_TYPE_UNKNOWN)
+                        self.dictionary[chunkName] = newChunk
 
-                    chunkHasEnded = False
-                    currentChunk = newChunk
-                    inIfdef = False
-                    waitingForIfdef = False
-                    continue
+                        if not chunkHasEnded and currentChunk.type != CHUNK_TYPE_CHANNEL_TABLE:
+                            # Old chunk can carry over into this chunk
+                            currentChunk.add_child(newChunk)
+                            currentChunk.followingChunk = newChunk
 
-            if not chunkHasEnded:
-                if line.startswith("#if"):
-                    inIfdef = True
-                elif line.startswith("#endif"):
-                    inIfdef = False
-                    if waitingForIfdef:
-                        # Chunk had ended and was waiting for #ifdef to be closed
-                        chunkHasEnded = True
-                if currentChunk.add_line(line):
-                    # End command found
-                    if inIfdef:
-                        # Currently waiting on #ifdef to be resolved
-                        # Terminate chunk when resolved
-                        waitingForIfdef = True
-                    else:
-                        chunkHasEnded = True
+                        chunkHasEnded = False
+                        currentChunk = newChunk
+                        inIfdef = False
+                        waitingForIfdef = False
+                        continue
 
-    # Step 2: Iterate over all chunks and resolve references
-    for chunk in chunkDictionary.values():
-        chunk.resolve_references()
+                if not chunkHasEnded:
+                    if line.startswith("#if"):
+                        inIfdef = True
+                    elif line.startswith("#endif"):
+                        inIfdef = False
+                        if waitingForIfdef:
+                            # Chunk had ended and was waiting for #ifdef to be closed
+                            chunkHasEnded = True
+                    if currentChunk.add_line(line):
+                        # End command found
+                        if inIfdef:
+                            # Currently waiting on #ifdef to be resolved
+                            # Terminate chunk when resolved
+                            waitingForIfdef = True
+                        else:
+                            chunkHasEnded = True
 
-def write_chunk_to_file(chunk, f):
-    f.write("\n" + chunk.name + ":\n")
-    for line in chunk.lines:
-        if type(line) == ReferenceCommand:
-            f.write(line.get_str() + "\n")
-        else:
-            f.write(line + "\n")
+        # Step 2: Iterate over all chunks and resolve references
+        for chunk in self.dictionary.values():
+            chunk.resolve_references(self)
 
-def reconstruct_sequence_player(output):
-    with open(output, "w") as f:
-        f.write(
+
+    # Copy an individual chunk to the file
+    def write_chunk_to_file(self, chunk, f):
+        f.write("\n" + chunk.name + ":\n")
+        for line in chunk.lines:
+            if type(line) == ReferenceCommand:
+                f.write(line.get_str() + "\n")
+            else:
+                f.write(line + "\n")
+
+
+    # Reconstruct a full seq00 file from the chunk dictionary
+    def reconstruct_sequence_player(self, output):
+        with open(output, "w") as f:
+            f.write(
 '#include "seq_macros.inc"\n\
 \n\
 .section .rodata\n\
 .align 0\n')
-        currentChunk = chunkDictionary["sequence_start"]
-        while True:
-            write_chunk_to_file(currentChunk, f)
-            del chunkDictionary[currentChunk.name]
-            if currentChunk.followingChunk is not None:
-                currentChunk = currentChunk.followingChunk
-            else:
-                if len(chunkDictionary) == 0: break
-                currentChunk = next(iter(chunkDictionary.values()))
+            currentChunk = self.dictionary[ENTRY_CHUNK]
+            while True:
+                self.write_chunk_to_file(currentChunk, f)
+                del self.dictionary[currentChunk.name]
+                if currentChunk.followingChunk is not None:
+                    currentChunk = currentChunk.followingChunk
+                else:
+                    if len(self.dictionary) == 0: break
+                    currentChunk = next(iter(self.dictionary.values()))
 
 
-def delete_chunk(chunk):
-    assert len(chunk.parents) == 0
-    for child in chunk.children:
-        child.parents.remove(chunk)
-        if len(child.parents) == 0:
-            delete_chunk(child)
-    del chunkDictionary[chunk.name]
-    print("Deleted chunk " + chunk.name)
+    # Recursively delete a chunk and any children that have no other parents
+    def delete_chunk(self, chunk):
+        assert len(chunk.parents) == 0
+        for child in chunk.children:
+            child.parents.remove(chunk)
+            if len(child.parents) == 0:
+                self.delete_chunk(child)
+        del self.dictionary[chunk.name]
 
 
-def trim_chunks():
-    # Iterate over chunks and find any with no parents
-    for chunk in tuple(chunkDictionary.values()):
-        if len(chunk.parents) == 0 and chunk.name in chunkDictionary:
-            if chunk.name == "sequence_start": continue
-            delete_chunk(chunk)
+    # Trim all unreferenced chunks
+    def trim_chunks(self):
+        # Iterate over chunks and find any with no parents
+        for chunk in tuple(self.dictionary.values()):
+            if len(chunk.parents) == 0 and chunk.name in self.dictionary:
+                if chunk.name == ENTRY_CHUNK: continue
+                self.delete_chunk(chunk)
+    
+
+    def get_num_channels(self):
+        mainChunk = self.dictionary[ENTRY_CHUNK]
+        numChannels = 0
+        for line in mainChunk.lines:
+            if line_is_command(line, "seq_startchannel"):
+                numChannels += 1
+        return numChannels
+
+
+    # Get the channel table chunk with a specific ID
+    def get_channel_table_chunk(self, channelID):
+        mainChunk = self.dictionary[ENTRY_CHUNK]
+        channelChunk = None
+        # Iterate over all lines
+        for line in mainChunk.lines:
+            if line_is_command(line, "seq_startchannel"):
+                if int(line.param.strip(",")) == channelID:
+                    channelChunk = line.reference
+                    break
+        # Retrieve channel table from channel
+        for line in channelChunk.lines:
+            if line_is_command(line, "chan_setdyntable"):
+                return line.reference
+
+
+    # Get the reference to a specific sound in a channel table from its ID
+    def get_sound_ref_from_channel(self, tableChunk, soundID, replaceChunk=None):
+        i = 0
+        for line in tableChunk.lines:
+            if line_is_command(line, "sound_ref"):
+                if i == soundID:
+                    oldChunk = line.reference
+                    if replaceChunk is not None:
+                        line.reference = replaceChunk
+                    return oldChunk
+                i += 1
+
+
+    # Get all sound references in a channel table
+    def get_all_sound_refs_from_channel(self, tableChunk):
+        soundRefs = []
+        for line in tableChunk.lines:
+            if line_is_command(line, "sound_ref"):
+                soundRefs.append(line.reference)
+        return soundRefs
+
+
+    # Replace an existing sound reference with a new chunk
+    def replace_sound_ref(self, channelID, soundID, newChunk):
+        tableChunk = self.get_channel_table_chunk(channelID)
+        oldChunk = self.get_sound_ref_from_channel(tableChunk, soundID, replaceChunk=newChunk)
+
+        oldChunk.parents.remove(tableChunk)
+        tableChunk.children.remove(oldChunk)
+
+        tableChunk.add_child(newChunk)
+        self.dictionary[newChunk.name] = newChunk
+
+        # If chunk has no references left, delete it
+        if len(oldChunk.parents) == 0:
+            self.delete_chunk(oldChunk)
+
+
+    # Append a new chunk as a sound reference to a channel table and return its new ID
+    def add_sound_ref(self, channelID, newChunk):
+        tableChunk = self.get_channel_table_chunk(channelID)
+        i = 0
+        for line in tableChunk.lines:
+            if line_is_command(line, "sound_ref"):
+                i += 1
+        tableChunk.add_child(newChunk)
+        self.dictionary[newChunk.name] = newChunk
+        tableChunk.lines.append(ReferenceCommand(get_command_id("sound_ref"), None, newChunk))
+        return i
+
+
+def line_is_command(line, cmd):
+    return type(line) == ReferenceCommand and referenceCommands[line.commandID][0] == cmd
+
+def get_command_id(cmd):
+    for i in range(len(referenceCommands)):
+        if referenceCommands[i][0] == cmd:
+            return i
+    return None

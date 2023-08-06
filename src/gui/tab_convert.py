@@ -126,17 +126,7 @@ class ConvertAudioTab(MainTab):
         self.layout.addStretch(1)
 
         # 6th line: Convert button
-        convertWidget = QWidget()
-        convertLayout = QHBoxLayout()
-        convertWidget.setLayout(convertLayout)
-        self.layout.addWidget(convertWidget)
-
-        convertLayout.addStretch(1)
-        self.convertButton = QPushButton(text="Convert!")
-        self.convertButton.clicked.connect(self.convert_pressed)
-        self.convertButton.setSizePolicy(QSizePolicy.Policy.Fixed, QSizePolicy.Policy.Fixed)
-        convertLayout.addWidget(self.convertButton)
-        convertLayout.addStretch(1)
+        convertWidget, self.convertButton = add_centered_button_to_layout(self.layout, "Convert!", self.convert_pressed)
 
         # 7th line: Import info
         self.importInfoLabel = QLabel(text="")

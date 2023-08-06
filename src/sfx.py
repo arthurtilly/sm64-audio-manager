@@ -60,18 +60,59 @@ def delete_sfx_defines_with_id(decomp, bankNo, id):
             soundDefines.write(line)
     return count
 
-delete_sfx_defines_with_id("U:/home/arthur/HackerSM64", 3, 0x40)
+#delete_sfx_defines_with_id("U:/home/arthur/HackerSM64", 3, 0x40)
+
+"""
+Sound file selected:   Browse...
+
+Loop:   Loop begin:   Loop end:
+
+
+- - - - 
+
+Name: <SOUND_GENERAL_X>  Priority: X   Set flags...
+Name: <SOUND_GENERAL_X>  Priority: X   Set flags...
+Add...
+
+- - - -
+
+Sample name:
+Sound name:
+
+- - - -
+
+Replacing sound X in bank X... / Adding new sound to bank X
+"""
+
 
 def add_sfx_define_with_id(decomp, bankNo, id, sfx):
     pass
 
+def modify_sfx_defines(newSfxs):
+    # Step 1: Delete old sound defines
+    # Step 2: Add new sound defines
+    pass
+
 def add_sfx_from_instrument(
     decomp, # Path to decomp folder
-    replace, # Whether to replace existing sfx - if yes, bank ID of sequence to replace
+    replace, # Whether to replace existing sfx
     instBankNo, instNo, # Inst bank and number of sample to use
-    soundDefine, # Name of sound define
-    soundBank, # Sound bank / channel to use
-    flags):
+    sfxs): # List of new Sfx objects - must have same bank and ID; define, priority, and flags can differ
+                                       # if replace is False, ID can be missing and will be auto-assigned
+    # If replace:
+    #   Add new chunk and layer
+    #   Delete existing chunk recursively
+    #   Delete old sound define(s)
+
+    #   Modify channel table
+    #   Add new sound define(s)
+
+    # If not replace:
+    #   Determine new free ID
+    #   Add new chunk and layer
+
+    #   Append channel table
+    #   Add new sound define(s)
     pass
 
 

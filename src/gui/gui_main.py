@@ -14,6 +14,7 @@ if "decomp" in persistent:
 
 from tab_music import *
 from tab_convert import *
+from tab_sfx import *
 
 from PyQt6.QtWidgets import *
 from PyQt6.QtGui import *
@@ -83,6 +84,7 @@ class MainWindow(QWidget):
         self.tabs = []
 
         self.add_tab(StreamedMusicTab, "Streamed Music")
+        self.add_tab(ImportSfxTab, "Import SFX")
         self.add_tab(ConvertAudioTab, "Convert Audio")
 
 
@@ -99,7 +101,7 @@ class MainWindow(QWidget):
 
 
 # The frame that displays the current decomp directory
-class DecompBar(QWidget):
+class DecompBar(QFrame):
     def __init__(self, parent):
         super().__init__()
 
@@ -115,6 +117,8 @@ class DecompBar(QWidget):
         self.layout.setStretchFactor(self.setDecompFolder, 1)
         self.layout.setAlignment(self.setDecompFolder, QtCore.Qt.AlignmentFlag.AlignLeft)
 
+        self.setFrameShape(QFrame.Shape.StyledPanel)
+
     # Add border
     def paintEvent(self, event):
         painter = QPainter(self)
@@ -125,11 +129,8 @@ class DecompBar(QWidget):
         gradient.setColorAt(1, QColor(20, 20, 20))
         painter.setBrush(gradient)
         painter.drawRect(0, 0, self.width(), self.height())
-        # Draw border
-        pen.setColor(QColor(20, 20, 20))
-        pen.setWidth(2)
-        painter.setPen(pen)
-        painter.drawRect(0, 0, self.width(), self.height())
+
+        super().paintEvent(event)
 
 
 # Save all persistent data
