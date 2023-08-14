@@ -34,6 +34,8 @@ class ImportSfxTab(MainTab):
         self.load_chunk_dictionary()
         self.selectedChunk = None
 
+        self.sampleLoaded = False
+
         self.layout = QHBoxLayout()
         self.layout.setContentsMargins(0, 0, 0, 0)
         self.layout.setSpacing(0)
@@ -58,9 +60,12 @@ class ImportSfxTab(MainTab):
         optionsLayout = new_widget(self.layout, QVBoxLayout, spacing=5)
         optionsLayout.addStretch(1)
 
-        sampleFrame = self.create_sample_frame(optionsLayout)
+        addEntriesLabel = QLabel(text="Add/remove sound entries:")
+        optionsLayout.addWidget(addEntriesLabel)
+        soundFrame = self.create_sound_frame(optionsLayout)
+        optionsLayout.addWidget(QLabel(text="Import new SFX:"))
+        (loopInfoWidget, sampleNameWidget, noteWidget) = self.create_sample_frame(optionsLayout)
         defineFrame = self.create_define_frame(optionsLayout)
-        nameFrame = self.create_names_frame(optionsLayout)
 
         optionsLayout.addStretch(1)
 
@@ -73,18 +78,58 @@ class ImportSfxTab(MainTab):
 
         optionsLayout.addStretch(1)
 
-        self.toggableImportWidgets = (
-            self.loopInfoLayout.parentWidget(),
-            nameFrame,
+        self.toggleRequiresSample = (
+            loopInfoWidget,
+            sampleNameWidget,
+            noteWidget,
+        )
+
+        self.toggleRequiresSound = (
+            defineFrame,
+            addEntriesLabel,
+            soundFrame,
+        )
+
+        self.toggleRequiresBoth = (
             importWidget,
         )
 
-        self.toggleableDefineWidgets = (
-            defineFrame,
-        )
+        self.toggle_all_options()
 
-        self.toggle_import_options(False)
-        self.toggle_define_options(False)
+    
+    def create_sound_frame(self, layout):
+        soundFrame = QFrame()
+        soundLayout = QVBoxLayout()
+        soundFrame.setLayout(soundLayout)
+        layout.addWidget(soundFrame)
+        soundFrame.setFrameShape(QFrame.Shape.StyledPanel)
+
+        # Sound name
+        soundNameLayout = new_widget(soundLayout, QHBoxLayout, alignment=QtCore.Qt.AlignmentFlag.AlignHCenter)
+        soundNameLabel = QLabel(text="New sound name:")
+        soundNameLayout.addWidget(soundNameLabel, alignment=QtCore.Qt.AlignmentFlag.AlignRight)
+        self.soundName = QLineEdit()
+        self.soundName.setText("")
+        self.soundName.setFixedWidth(170)
+        soundNameLayout.addWidget(self.soundName, alignment=QtCore.Qt.AlignmentFlag.AlignLeft)
+
+        buttonLayout = new_widget(soundLayout, QHBoxLayout)
+
+        buttonLayout.addStretch(1)
+        insertBelowButton = QPushButton(text="Insert below")
+        buttonLayout.addWidget(insertBelowButton)
+
+        buttonLayout.addStretch(1)
+        insertAboveButton = QPushButton(text="Insert above")
+        buttonLayout.addWidget(insertAboveButton)
+
+        buttonLayout.addStretch(1)
+        deleteButton = QPushButton(text="Delete")
+        buttonLayout.addWidget(deleteButton)
+
+        buttonLayout.addStretch(1)
+
+        return soundFrame
 
 
     # Create the frame for choosing a sample to import
@@ -94,6 +139,7 @@ class ImportSfxTab(MainTab):
         sampleFrame.setLayout(sampleLayout)
         layout.addWidget(sampleFrame)
         sampleFrame.setFrameShape(QFrame.Shape.StyledPanel)
+        sampleLayout.setSpacing(0)
 
         # First line: Widget for sample selection
         selectSoundFileLayout = new_widget(sampleLayout, QHBoxLayout)
@@ -113,51 +159,82 @@ class ImportSfxTab(MainTab):
         selectSoundFileLayout.addStretch(1)
 
         # Second line: Set loop data
-        self.loopInfoLayout = new_widget(sampleLayout, QHBoxLayout)
-        self.loopInfoLayout.addStretch(1)
+        loopInfoLayout = new_widget(sampleLayout, QHBoxLayout)
+        loopInfoLayout.addStretch(1)
 
         # Loop checkbox
         self.doLoop = QCheckBox(text="Loop")
         self.doLoop.setChecked(True)
         self.doLoop.stateChanged.connect(self.loop_checkbutton_pressed)
-        self.loopInfoLayout.addWidget(self.doLoop)
+        loopInfoLayout.addWidget(self.doLoop)
         self.doLoop.setSizePolicy(QSizePolicy.Policy.Fixed, QSizePolicy.Policy.Fixed)
 
         palette = self.doLoop.palette()
         palette.setColor(QPalette.ColorRole.Base, self.palette().color(QPalette.ColorRole.Button))
         self.doLoop.setPalette(palette)
 
-        self.loopInfoLayout.addStretch(1)
+        loopInfoLayout.addStretch(1)
 
         # Loop start
         self.loopBeginLabel = QLabel(text="Loop start:")
-        self.loopInfoLayout.addWidget(self.loopBeginLabel)
+        loopInfoLayout.addWidget(self.loopBeginLabel)
 
         self.loopBegin = QLineEdit()
         self.loopBegin.setAlignment(QtCore.Qt.AlignmentFlag.AlignRight)
         self.loopBegin.setMaximumWidth(80)
         self.loopBegin.setText("")
         self.loopBegin.setValidator(QIntValidator())
-        self.loopInfoLayout.addWidget(self.loopBegin)
-        self.loopInfoLayout.setStretchFactor(self.loopBegin, 0)
+        loopInfoLayout.addWidget(self.loopBegin)
+        loopInfoLayout.setStretchFactor(self.loopBegin, 0)
 
-        self.loopInfoLayout.addStretch(1)
+        loopInfoLayout.addStretch(1)
 
         # Loop end
         self.loopEndLabel = QLabel(text="Loop end:")
-        self.loopInfoLayout.addWidget(self.loopEndLabel)
+        loopInfoLayout.addWidget(self.loopEndLabel)
 
         self.loopEnd = QLineEdit()
         self.loopEnd.setAlignment(QtCore.Qt.AlignmentFlag.AlignRight)
         self.loopEnd.setMaximumWidth(80)
         self.loopEnd.setText("")
         self.loopEnd.setValidator(QIntValidator())
-        self.loopInfoLayout.addWidget(self.loopEnd)
-        self.loopInfoLayout.setStretchFactor(self.loopEnd, 0)
+        loopInfoLayout.addWidget(self.loopEnd)
+        loopInfoLayout.setStretchFactor(self.loopEnd, 0)
 
-        self.loopInfoLayout.addStretch(1)
+        loopInfoLayout.addStretch(1)
 
-        return sampleFrame
+        # Third line: Sample name
+        sampleNameLayout = new_widget(sampleLayout, QHBoxLayout, alignment=QtCore.Qt.AlignmentFlag.AlignHCenter)
+        sampleNameLabel = QLabel(text="Sample name:")
+        sampleNameLayout.addWidget(sampleNameLabel, alignment=QtCore.Qt.AlignmentFlag.AlignRight)
+        self.sampleName = QLineEdit()
+        self.sampleName.setText("")
+        self.sampleName.setFixedWidth(170)
+        sampleNameLayout.addWidget(self.sampleName, alignment=QtCore.Qt.AlignmentFlag.AlignLeft)
+
+        # Fourth line: Pitch and volume
+        noteLayout = new_widget(sampleLayout, QHBoxLayout)
+        noteLayout.addStretch(2)
+
+        pitchLabel = QLabel(text="Pitch:")
+        noteLayout.addWidget(pitchLabel)
+        self.pitch = QSpinBox()
+        self.pitch.setMinimum(0)
+        self.pitch.setMaximum(127)
+        self.pitch.setValue(39)
+        noteLayout.addWidget(self.pitch)
+
+        noteLayout.addStretch(1)
+        volumeLabel = QLabel(text="Volume:")
+        noteLayout.addWidget(volumeLabel)
+        self.volume = QSpinBox()
+        self.volume.setMinimum(0)
+        self.volume.setMaximum(127)
+        self.volume.setValue(127)
+        noteLayout.addWidget(self.volume)
+        noteLayout.addStretch(2)
+
+        return (loopInfoLayout.parentWidget(), sampleNameLayout.parentWidget(), noteLayout.parentWidget())
     
 
     # Create the frame for the sound define data
@@ -178,48 +255,16 @@ class ImportSfxTab(MainTab):
         _, self.addDefineButton = add_centered_button_to_layout(self.defineLayout, "Add...", self.add_define_row)
 
         return defineFrame
-    
-
-    # Create the frame for entering the sound and sample names
-    def create_names_frame(self, layout):
-        nameFrame = QFrame()
-        nameFrame.setFrameShape(QFrame.Shape.StyledPanel)
-        nameLayout = QVBoxLayout()
-        nameLayout.setSpacing(0)
-        nameFrame.setLayout(nameLayout)
-        layout.addWidget(nameFrame)
-    
-        nameWidgetLayout = new_widget(nameLayout, QGridLayout, alignment=QtCore.Qt.AlignmentFlag.AlignHCenter)
-
-        # Sound name
-        self.soundNameLabel = QLabel(text="Sound name:")
-        nameWidgetLayout.addWidget(self.soundNameLabel, 0, 0, alignment=QtCore.Qt.AlignmentFlag.AlignRight)
-        self.soundName = QLineEdit()
-        self.soundName.setText("")
-        self.soundName.setFixedWidth(170)
-        nameWidgetLayout.addWidget(self.soundName, 0, 1, alignment=QtCore.Qt.AlignmentFlag.AlignLeft)
-
-        # Sample name
-        self.sampleNameLabel = QLabel(text="Sample name:")
-        nameWidgetLayout.addWidget(self.sampleNameLabel, 1, 0, alignment=QtCore.Qt.AlignmentFlag.AlignRight)
-        self.sampleName = QLineEdit()
-        self.sampleName.setText("")
-        self.sampleName.setFixedWidth(170)
-        nameWidgetLayout.addWidget(self.sampleName, 1, 1, alignment=QtCore.Qt.AlignmentFlag.AlignLeft)
-
-        pitchLayout = new_widget(nameLayout, QHBoxLayout, alignment=QtCore.Qt.AlignmentFlag.AlignHCenter)
-
-        pitchLabel = QLabel(text="Pitch:")
-        pitchLayout.addWidget(pitchLabel)
-        self.pitch = QSpinBox()
-        self.pitch.setMinimum(0)
-        self.pitch.setMaximum(127)
-        self.pitch.setValue(39)
-        pitchLayout.addWidget(self.pitch)
-
-        return nameFrame
 
 
+    # Clear all define rows
+    def clear_define_rows(self):
+        while len(self.defines) > 0:
+            self.defineEntryLayout.removeWidget(self.defines[-1][0])
+            self.defines.pop()
+
+
+    # Add a new define row
     def add_define_row(self):
         defineLayout = new_widget(self.defineEntryLayout, QHBoxLayout)
         defineLayout.setContentsMargins(0, 0, 0, 0)
@@ -259,13 +304,14 @@ class ImportSfxTab(MainTab):
 
 
     # Switch between having all options enabled or disabled
-    def toggle_import_options(self, enabled):
-        for widget in self.toggableImportWidgets:
+    def toggle_options(self, options, enabled):
+        for widget in options:
             widget.setEnabled(enabled)
 
-    def toggle_define_options(self, enabled):
-        for widget in self.toggleableDefineWidgets:
-            widget.setEnabled(enabled)
+    def toggle_all_options(self):
+        self.toggle_options(self.toggleRequiresSample, self.sampleLoaded)
+        self.toggle_options(self.toggleRequiresSound, self.selectedChunk is not None)
+        self.toggle_options(self.toggleRequiresBoth, self.sampleLoaded and self.selectedChunk is not None)
 
 
     # Toggle loop options between enabled and disabled
@@ -310,22 +356,17 @@ class ImportSfxTab(MainTab):
         data = item.data(0, QtCore.Qt.ItemDataRole.UserRole)
         if data is None:
             self.selectedChunk = None
-            self.toggle_define_options(False)
+            self.clear_define_rows()
+            self.toggle_all_options()
             return
         
         self.selectedChunk = data[0]
         # Clear all define widgets
-        while len(self.defines) > 0:
-            self.defineEntryLayout.removeWidget(self.defines[-1][0])
-            self.defines.pop()
+        self.clear_define_rows()
+        self.toggle_all_options()
         
         sfxs = get_sfx_defines_from_id(self.decomp, data[1], data[2])
-        if len(sfxs) == 0:
-            self.add_define_row()
-            self.toggle_define_options(False)
-            return
         
-        self.toggle_define_options(True)
         for sfx in sfxs:
             self.add_define_row()
             self.defines[-1][1].setText(sfx.define)
