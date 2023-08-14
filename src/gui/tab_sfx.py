@@ -3,6 +3,7 @@ warnings.filterwarnings("ignore", category=DeprecationWarning)
 
 import os
 import aifc
+from dataclasses import dataclass
 
 from PyQt6.QtWidgets import *
 from PyQt6.QtGui import *
@@ -15,7 +16,7 @@ from misc import *
 from sfx import *
 from seq00 import *
 
-channelNames = (
+bankNames = (
     "Action",
     "Moving",
     "Voice",
@@ -24,9 +25,23 @@ channelNames = (
     "Objects",
     "Air",
     "Menu",
-    "General 2",
-    "Objects 2",
 )
+
+@dataclass
+class SfxListEntry:
+    sfxChunk: SequencePlayerChunk
+    bankIDs: list[int]
+    sfxID: int
+
+
+@dataclass
+class DefineRow:
+    widget: QWidget
+    bank: QComboBox
+    name: QLineEdit
+    priority: QSpinBox
+    flags: QPushButton
+
 
 class ImportSfxTab(MainTab):
     # Create the regular page for importing sequences
@@ -126,6 +141,10 @@ class ImportSfxTab(MainTab):
         buttonLayout.addStretch(1)
         deleteButton = QPushButton(text="Delete")
         buttonLayout.addWidget(deleteButton)
+
+        buttonLayout.addStretch(1)
+        renameButton = QPushButton(text="Rename")
+        buttonLayout.addWidget(renameButton)
 
         buttonLayout.addStretch(1)
 
@@ -260,12 +279,12 @@ class ImportSfxTab(MainTab):
     # Clear all define rows
     def clear_define_rows(self):
         while len(self.defines) > 0:
-            self.defineEntryLayout.removeWidget(self.defines[-1][0])
+            self.defineEntryLayout.removeWidget(self.defines[-1].widget)
             self.defines.pop()
 
 
     # Add a new define row
-    def add_define_row(self):
+    def add_define_row(self, banks=None):
         defineLayout = new_widget(self.defineEntryLayout, QHBoxLayout)
         defineLayout.setContentsMargins(0, 0, 0, 0)
         defineLayout.addStretch(1)
@@ -274,6 +293,13 @@ class ImportSfxTab(MainTab):
         #trashButton.clicked.connect(lambda: self.remove_define_row(i))
         trashButton.setFixedSize(25, 25)
         defineLayout.addWidget(trashButton)
+
+        defineBank = None
+        if banks is not None:
+            defineBank = QComboBox()
+            defineBank.addItems(["Chn. "+str(bank) for bank in banks])
+            defineLayout.addWidget(defineBank)
+            defineLayout.addStretch(1)
 
         defineName = QLineEdit()
         defineLayout.addWidget(defineName)
@@ -295,7 +321,7 @@ class ImportSfxTab(MainTab):
         #defineFlags.clicked.connect()
         defineLayout.addWidget(defineFlags)
         defineLayout.addStretch(1)
-        self.defines.append((defineLayout.parentWidget(), defineName, definePriority, defineFlags))
+        self.defines.append(DefineRow(defineLayout.parentWidget(), defineBank, defineName, definePriority, defineFlags))
 
 
     # Parse seq00 and load the full chunk dictionary
@@ -353,25 +379,31 @@ class ImportSfxTab(MainTab):
     # When a new sequence is selected, update some of the info on the right
     def sfxlist_selection_changed(self):
         item = self.sfxList.currentItem()
-        data = item.data(0, QtCore.Qt.ItemDataRole.UserRole)
-        if data is None:
+        sfxListEntry = item.data(0, QtCore.Qt.ItemDataRole.UserRole)
+        if sfxListEntry is None:
             self.selectedChunk = None
             self.clear_define_rows()
             self.toggle_all_options()
             return
         
-        self.selectedChunk = data[0]
+        self.selectedChunk = sfxListEntry.sfxChunk
         # Clear all define widgets
         self.clear_define_rows()
         self.toggle_all_options()
-        
-        sfxs = get_sfx_defines_from_id(self.decomp, data[1], data[2])
-        
-        for sfx in sfxs:
-            self.add_define_row()
-            self.defines[-1][1].setText(sfx.define)
-            self.defines[-1][2].setValue(sfx.priority)
 
+        sounds_h = read_sfx_file(self.decomp)
+
+        for bank in sfxListEntry.bankIDs:
+            sfxs = get_sfx_defines_from_id(sounds_h, bank, sfxListEntry.sfxID)
+
+            for sfx in sfxs:
+                if len(sfxListEntry.bankIDs) > 1:
+                    self.add_define_row(sfxListEntry.bankIDs)
+                    self.defines[-1].bank.setCurrentIndex(sfxListEntry.bankIDs.index(bank))
+                else:
+                    self.add_define_row()
+                self.defines[-1].name.setText(sfx.define)
+                self.defines[-1].priority.setValue(sfx.priority)
 
 
     # Reload the sound effect list widget
@@ -380,18 +412,29 @@ class ImportSfxTab(MainTab):
         if len(self.sfxList.children()) > 0:
             self.sfxList.clear()
 
-        numChannels = self.chunkDictionary.get_num_channels()
-        for chanID in range(numChannels):
+        numBanks = len(self.chunkDictionary.bankTable)
+        duplicateBanks = []
+        for bankID in range(numBanks):
+            if bankID in duplicateBanks:
+                continue
             # New top level item for every channel
-            channelItem = QTreeWidgetItem(self.sfxList)
-            channelItem.setText(0, "Channel %d (%s)" % (chanID, channelNames[chanID]))
+
+            bankItem = QTreeWidgetItem(self.sfxList)
+
+            banks = self.chunkDictionary.bankTable[bankID].banks
+            if len(banks) > 1:
+                text = "Channels %s (%s)" % ("/".join([str(bank) for bank in banks]), bankNames[bankID])
+                duplicateBanks.extend(banks)
+            else:
+                text = "Channel %d (%s)" % (bankID, bankNames[bankID])
+            bankItem.setText(0, text)
 
             # Add children for each sfx
-            tableChunk = self.chunkDictionary.get_channel_table_chunk(chanID)
+            tableChunk = self.chunkDictionary.bankTable[bankID].table
             allSfx = self.chunkDictionary.get_all_sound_refs_from_channel(tableChunk)
             for i, sfx in enumerate(allSfx):
-                sfxItem = QTreeWidgetItem(channelItem)
+                sfxItem = QTreeWidgetItem(bankItem)
                 sfxItem.setText(0, sfx.name[1:])
-                sfxItem.setData(0, QtCore.Qt.ItemDataRole.UserRole, (sfx, chanID, i))
+                sfxItem.setData(0, QtCore.Qt.ItemDataRole.UserRole, SfxListEntry(sfx, banks, i))
 
 

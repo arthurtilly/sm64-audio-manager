@@ -1,4 +1,5 @@
 from misc import *
+from dataclasses import dataclass
 
 CHUNK_TYPE_UNKNOWN = -1
 CHUNK_TYPE_SEQUENCE = 0 # The main sequence
@@ -140,10 +141,17 @@ class SequencePlayerChunk:
                 self.add_child(line.reference)
 
 
+@dataclass
+class ChannelEntry:
+    table: SequencePlayerChunk    # Table chunk
+    banks: list                   # List of sound banks that use this channel
+
+
 class ChunkDictionary:
     def __init__(self, seq00Path):
         self.dictionary = {}
         self.parse_sequence_player(seq00Path)
+        self.build_bank_table()
 
 
     # Load the chunk dictionary from seq00
@@ -255,29 +263,27 @@ class ChunkDictionary:
                 self.delete_chunk(chunk)
     
 
-    def get_num_channels(self):
+    def build_bank_table(self):
+        self.bankTable = []
         mainChunk = self.dictionary[ENTRY_CHUNK]
-        numChannels = 0
         for line in mainChunk.lines:
             if line_is_command(line, "seq_startchannel"):
-                numChannels += 1
-        return numChannels
+                # Find channel table
+                for chnlLine in line.reference.lines:
+                    if line_is_command(chnlLine, "chan_setdyntable"):
+                        tableChunk = chnlLine.reference
+                        break
+                else:
+                    raise AudioManagerException("Error: Could not find channel table for channel %s" % line.reference.name)
 
-
-    # Get the channel table chunk with a specific ID
-    def get_channel_table_chunk(self, channelID):
-        mainChunk = self.dictionary[ENTRY_CHUNK]
-        channelChunk = None
-        # Iterate over all lines
-        for line in mainChunk.lines:
-            if line_is_command(line, "seq_startchannel"):
-                if int(line.param.strip(",")) == channelID:
-                    channelChunk = line.reference
-                    break
-        # Retrieve channel table from channel
-        for line in channelChunk.lines:
-            if line_is_command(line, "chan_setdyntable"):
-                return line.reference
+                # Check if table chunk is already in the bank table
+                for entry in self.bankTable:
+                    if entry.table is tableChunk:
+                        entry.banks.append(len(self.bankTable))
+                        self.bankTable.append(entry)
+                        break
+                else:
+                    self.bankTable.append(ChannelEntry(tableChunk, [len(self.bankTable)]))
 
 
     # Get the reference to a specific sound in a channel table from its ID
@@ -304,7 +310,7 @@ class ChunkDictionary:
 
     # Replace an existing sound reference with a new chunk
     def replace_sound_ref(self, channelID, soundID, newChunk):
-        tableChunk = self.get_channel_table_chunk(channelID)
+        tableChunk = self.bankTable[channelID].table
         oldChunk = self.get_sound_ref_from_channel(tableChunk, soundID, replaceChunk=newChunk)
 
         oldChunk.parents.remove(tableChunk)
@@ -320,7 +326,7 @@ class ChunkDictionary:
 
     # Append a new chunk as a sound reference to a channel table and return its new ID
     def add_sound_ref(self, channelID, newChunk):
-        tableChunk = self.get_channel_table_chunk(channelID)
+        tableChunk = self.bankTable[channelID].table
         i = 0
         for line in tableChunk.lines:
             if line_is_command(line, "sound_ref"):
@@ -339,3 +345,8 @@ def get_command_id(cmd):
         if referenceCommands[i][0] == cmd:
             return i
     return None
+
+
+#chunkdict = ChunkDictionary("U:/home/arthur/HackerSM64/sound/sequences/00_sound_player.s")
+#print(chunkdict.bankTable)
+

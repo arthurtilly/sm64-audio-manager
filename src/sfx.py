@@ -22,6 +22,18 @@ class Sfx:
     priority: int
     flags: str
 
+
+
+def read_sfx_file(decomp):
+    with open(os.path.join(decomp, "include", "sounds.h"), "r") as soundDefines:
+        return [line.rstrip() for line in soundDefines.readlines()]
+
+
+def write_sfx_file(decomp, lines):
+    with open(os.path.join(decomp, "include", "sounds.h"), "w") as soundDefines:
+        soundDefines.write("\n".join(lines))
+
+
 def sounds_h_line_is_define(line):
     return line.startswith("#define SOUND_") and "SOUND_ARG_LOAD" in line and not line.startswith("#define SOUND_ARG_LOAD")
 
@@ -32,57 +44,37 @@ def get_params_from_sounds_h_define(line):
     params[2] = int(params[2][2:], 16)
     return params
 
+
 # Gets all sound effects with the given bank number and ID
-def get_sfx_defines_from_id(decomp, bankNo, id):
+def get_sfx_defines_from_id(lines, bankNo, id):
     defines = []
-    with open(os.path.join(decomp, "include", "sounds.h"), "r") as soundDefines:
-        for line in soundDefines.readlines():
-            if sounds_h_line_is_define(line):
-                params = get_params_from_sounds_h_define(line)
-                if params[1] == id and params[0] == soundBanks[bankNo]:
-                    defineName = line.split(" ")[1]
-                    defines.append(Sfx(defineName, bankNo, id, params[2], params[3]))
+
+    for line in lines:
+        if sounds_h_line_is_define(line):
+            params = get_params_from_sounds_h_define(line)
+            if params[1] == id and params[0] == soundBanks[bankNo]:
+                defineName = line.split(" ")[1]
+                defines.append(Sfx(defineName, bankNo, id, params[2], params[3]))
+
     return defines
 
+
 # Deletes all sound effects with the given bank number and ID. Returns number of entries deleted.
-def delete_sfx_defines_with_id(decomp, bankNo, id):
+def delete_sfx_defines_with_id(lines, bankNo, id):
     count = 0
-    with open(os.path.join(decomp, "include", "sounds.h"), "r") as soundDefines:
-        lines = soundDefines.readlines()
-    with open(os.path.join(decomp, "include", "sounds.h"), "w") as soundDefines:
-        # Write all lines except the ones we want to delete
-        for line in lines:
-            if sounds_h_line_is_define(line):
-                params = get_params_from_sounds_h_define(line)
-                if params[1] == id and params[0] == soundBanks[bankNo]:
-                    count += 1
-                    continue
-            soundDefines.write(line)
+    for line in reversed(lines):
+        if sounds_h_line_is_define(line):
+            params = get_params_from_sounds_h_define(line)
+            if params[1] == id and params[0] == soundBanks[bankNo]:
+                count += 1
+                lines.remove(line)
+                continue
+
     return count
 
-#delete_sfx_defines_with_id("U:/home/arthur/HackerSM64", 3, 0x40)
-
-"""
-Sound file selected:   Browse...
-
-Loop:   Loop begin:   Loop end:
-
-
-- - - - 
-
-Name: <SOUND_GENERAL_X>  Priority: X   Set flags...
-Name: <SOUND_GENERAL_X>  Priority: X   Set flags...
-Add...
-
-- - - -
-
-Sample name:
-Sound name:
-
-- - - -
-
-Replacing sound X in bank X... / Adding new sound to bank X
-"""
+#sounds_h = read_sfx_file("U:/home/arthur/HackerSM64")
+#print(delete_sfx_defines_with_id(sounds_h, 3, 0x40))
+#write_sfx_file("U:/home/arthur/HackerSM64", sounds_h)
 
 
 def add_sfx_define_with_id(decomp, bankNo, id, sfx):
