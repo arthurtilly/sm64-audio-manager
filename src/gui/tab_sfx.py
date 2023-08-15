@@ -73,7 +73,6 @@ class ImportSfxTab(MainTab):
         self.sfxList.setVerticalScrollBar(vsb)
     
         optionsLayout = new_widget(self.layout, QVBoxLayout, spacing=5)
-        optionsLayout.addStretch(1)
 
         addEntriesLabel = QLabel(text="Add/remove sound entries:")
         optionsLayout.addWidget(addEntriesLabel)
@@ -145,6 +144,7 @@ class ImportSfxTab(MainTab):
 
         buttonLayout.addStretch(1)
         renameButton = QPushButton(text="Rename")
+        renameButton.clicked.connect(self.rename_pressed)
         buttonLayout.addWidget(renameButton)
 
         buttonLayout.addStretch(1)
@@ -377,6 +377,21 @@ class ImportSfxTab(MainTab):
         self.toggle_loop_options(self.doLoop.isChecked())
 
 
+    # Determine default name for sound based on selected chunk
+    def update_sound_name(self):
+        # Strip numbers from right side of name
+        name = self.selectedChunk.name[1:]
+        while name[-1].isdigit():
+            name = name[:-1]
+        # Determine new name
+        i = 2
+        while True:
+            newName = name + str(i)
+            if self.chunkDictionary.dictionary.get("." + newName) is None:
+                self.soundName.setText(newName)
+                break
+            i += 1
+
     # When a new sequence is selected, update some of the info on the right
     def sfxlist_selection_changed(self):
         item = self.sfxList.currentItem()
@@ -391,6 +406,7 @@ class ImportSfxTab(MainTab):
         # Clear all define widgets
         self.clear_define_rows()
         self.toggle_all_options()
+        self.update_sound_name()
 
         sounds_h = read_sfx_file(self.decomp)
 
@@ -439,20 +455,60 @@ class ImportSfxTab(MainTab):
                 sfxItem.setData(0, QtCore.Qt.ItemDataRole.UserRole, SfxListEntry(sfx, banks, i))
 
 
-    # Delete currently selected sfx
-    def delete_pressed(self):
-        item = self.sfxList.currentItem()
-        sfxListEntry = item.data(0, QtCore.Qt.ItemDataRole.UserRole)
-
-        delete_sfx(self.decomp, sfxListEntry.bankIDs[0], sfxListEntry.sfxID)
-
-        bankItem = item.parent()
-        # Delete the item from the list
-        bankItem.removeChild(item)
-
-        # Go through all sfx items of the chosen bank in the list and update their data
+    # Update IDs for all children of a bank list item
+    def update_sfx_ids(self, bankItem):
         for i in range(bankItem.childCount()):
             sfxItem = bankItem.child(i)
             sfxListEntry = sfxItem.data(0, QtCore.Qt.ItemDataRole.UserRole)
             sfxListEntry.sfxID = i
             sfxItem.setData(0, QtCore.Qt.ItemDataRole.UserRole, sfxListEntry)
+
+
+    # Delete currently selected sfx
+    def delete_pressed(self):
+        item = self.sfxList.currentItem()
+        sfxListEntry = item.data(0, QtCore.Qt.ItemDataRole.UserRole)
+
+        delete_sfx(self.decomp, self.chunkDictionary, sfxListEntry.bankIDs[0], sfxListEntry.sfxID)
+        self.chunkDictionary.reconstruct_sequence_player()
+
+        bankItem = item.parent()
+        # Delete the item from the list
+        bankItem.removeChild(item)
+        self.update_sfx_ids(bankItem)
+        
+        self.sfxlist_selection_changed()
+
+    # Rename currently selected sfx
+    def rename_pressed(self):
+        try:
+            # Validate name
+            validate_name(self.soundName.text(), "sound name")
+            if self.chunkDictionary.dictionary.get("." + self.soundName.text()) is not None:
+                raise AudioManagerException(f"Sound {self.soundName.text()} already exists")
+
+            oldName = self.selectedChunk.name
+            self.selectedChunk.name = "." + self.soundName.text()
+
+            # Hacky way to maintain dictionary order while modifying keys by reconstructing it
+            keyOrder = list(self.chunkDictionary.dictionary.keys())
+            del self.chunkDictionary.dictionary[oldName]
+            self.chunkDictionary.dictionary[self.selectedChunk.name] = self.selectedChunk
+            keyOrder[keyOrder.index(oldName)] = self.selectedChunk.name
+            self.chunkDictionary.dictionary = {key: self.chunkDictionary.dictionary[key] for key in keyOrder}
+
+            self.chunkDictionary.reconstruct_sequence_player()
+            # Iterate over every item to update names
+            for i in range(self.sfxList.topLevelItemCount()):
+                bankItem = self.sfxList.topLevelItem(i)
+                for j in range(bankItem.childCount()):
+                    sfxItem = bankItem.child(j)
+                    sfxListEntry = sfxItem.data(0, QtCore.Qt.ItemDataRole.UserRole)
+                    if sfxListEntry.sfxChunk.name == self.selectedChunk.name:
+                        sfxItem.setText(0, self.soundName.text())
+            
+            self.update_sound_name()
+
+        except AudioManagerException as e:
+            self.set_info_message("Error: " + str(e), COLOR_RED)
+            return

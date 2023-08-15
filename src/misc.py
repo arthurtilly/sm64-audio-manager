@@ -31,6 +31,8 @@ def validate_name(name, whichName):
     for char in name:
         if char not in allowedCharacters:
             raise AudioManagerException("Invalid character '%s' in %s" % (char, whichName))
+    if len(name) == 0:
+        raise AudioManagerException("%s cannot be empty" % whichName.capitalize())
 
 
 def check_names_for_duplicates(decomp, seqId, seqName=None, soundbankName=None, sampleName=None):

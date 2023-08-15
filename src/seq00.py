@@ -234,15 +234,16 @@ class ChunkDictionary:
 \n\
 .section .rodata\n\
 .align 0\n')
-            currentChunk = self.dictionary[ENTRY_CHUNK]
+            copiedDict = self.dictionary.copy()
+            currentChunk = copiedDict[ENTRY_CHUNK]
             while True:
                 self.write_chunk_to_file(currentChunk, f)
-                del self.dictionary[currentChunk.name]
+                del copiedDict[currentChunk.name]
                 if currentChunk.followingChunk is not None:
                     currentChunk = currentChunk.followingChunk
                 else:
-                    if len(self.dictionary) == 0: break
-                    currentChunk = next(iter(self.dictionary.values()))
+                    if len(copiedDict) == 0: break
+                    currentChunk = next(iter(copiedDict.values()))
 
 
     # Recursively delete a chunk and any children that have no other parents

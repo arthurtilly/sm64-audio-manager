@@ -166,8 +166,7 @@ def modify_sfx_defines(newSfxs):
     pass
 
 
-def delete_sfx(decomp, bankNo, id):
-    chunkDict = ChunkDictionary(decomp)
+def delete_sfx(decomp, chunkDict, bankNo, id):
     sounds_h = read_sfx_file(decomp)
     banks = chunkDict.bankTable[bankNo].banks
 
@@ -175,7 +174,6 @@ def delete_sfx(decomp, bankNo, id):
     chunkDict.delete_sound_ref(bankNo, id)
 
     write_sfx_file(decomp, sounds_h)
-    chunkDict.reconstruct_sequence_player()
 
 
 def add_sfx_from_instrument(
