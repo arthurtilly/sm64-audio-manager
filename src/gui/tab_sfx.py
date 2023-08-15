@@ -140,6 +140,7 @@ class ImportSfxTab(MainTab):
 
         buttonLayout.addStretch(1)
         deleteButton = QPushButton(text="Delete")
+        deleteButton.clicked.connect(self.delete_pressed)
         buttonLayout.addWidget(deleteButton)
 
         buttonLayout.addStretch(1)
@@ -326,7 +327,7 @@ class ImportSfxTab(MainTab):
 
     # Parse seq00 and load the full chunk dictionary
     def load_chunk_dictionary(self):
-        self.chunkDictionary = ChunkDictionary(os.path.join(self.decomp, "sound", "sequences", "00_sound_player.s"))
+        self.chunkDictionary = ChunkDictionary(self.decomp)
 
 
     # Switch between having all options enabled or disabled
@@ -438,3 +439,20 @@ class ImportSfxTab(MainTab):
                 sfxItem.setData(0, QtCore.Qt.ItemDataRole.UserRole, SfxListEntry(sfx, banks, i))
 
 
+    # Delete currently selected sfx
+    def delete_pressed(self):
+        item = self.sfxList.currentItem()
+        sfxListEntry = item.data(0, QtCore.Qt.ItemDataRole.UserRole)
+
+        delete_sfx(self.decomp, sfxListEntry.bankIDs[0], sfxListEntry.sfxID)
+
+        bankItem = item.parent()
+        # Delete the item from the list
+        bankItem.removeChild(item)
+
+        # Go through all sfx items of the chosen bank in the list and update their data
+        for i in range(bankItem.childCount()):
+            sfxItem = bankItem.child(i)
+            sfxListEntry = sfxItem.data(0, QtCore.Qt.ItemDataRole.UserRole)
+            sfxListEntry.sfxID = i
+            sfxItem.setData(0, QtCore.Qt.ItemDataRole.UserRole, sfxListEntry)

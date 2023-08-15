@@ -148,16 +148,17 @@ class ChannelEntry:
 
 
 class ChunkDictionary:
-    def __init__(self, seq00Path):
+    def __init__(self, decomp):
         self.dictionary = {}
-        self.parse_sequence_player(seq00Path)
+        self.path = os.path.join(decomp, "sound", "sequences", "00_sound_player.s")
+        self.parse_sequence_player()
         self.build_bank_table()
 
 
     # Load the chunk dictionary from seq00
-    def parse_sequence_player(self, path):
+    def parse_sequence_player(self):
         # Step 1: Parse file into chunks
-        with open(path, "r") as f:
+        with open(self.path, "r") as f:
             line = None
             while line != ("%s:\n" % ENTRY_CHUNK):
                 line = f.readline()
@@ -172,7 +173,7 @@ class ChunkDictionary:
             while True:
                 line = f.readline()
                 if not line: break
-                line = line.strip()
+                line = line.rstrip()
                 if len(line) == 0: continue
 
                 # Check if line is a label
@@ -226,8 +227,8 @@ class ChunkDictionary:
 
 
     # Reconstruct a full seq00 file from the chunk dictionary
-    def reconstruct_sequence_player(self, output):
-        with open(output, "w") as f:
+    def reconstruct_sequence_player(self):
+        with open(self.path, "w") as f:
             f.write(
 '#include "seq_macros.inc"\n\
 \n\
@@ -324,17 +325,48 @@ class ChunkDictionary:
             self.delete_chunk(oldChunk)
 
 
-    # Append a new chunk as a sound reference to a channel table and return its new ID
-    def add_sound_ref(self, channelID, newChunk):
+    # Red coin and secret miniseqs have hardcoded IDs to determine the pitch to play at
+    def fix_hardcoded_ids_when_deleting(self, chunk):
+        # Scan the chunk until a chan_subtract is found
+        for i, line in enumerate(chunk.lines):
+            if type(line) == str and line.startswith("chan_subtract"):
+                # Get the subtracted value
+                subtractedValue = int(line.split(" ")[1].strip()[2:], 16)
+                chunk.lines[i] = f"chan_subtract 0x{subtractedValue - 1:02X}"
+                
+
+    
+    # Delete a sound reference from a channel table
+    def delete_sound_ref(self, channelID, soundID):
         tableChunk = self.bankTable[channelID].table
+        oldChunk = self.get_sound_ref_from_channel(tableChunk, soundID)
+
+        oldChunk.parents.remove(tableChunk)
+        tableChunk.children.remove(oldChunk)
+
+        redcoins = False
+        secrets = False
+
+        # Delete line of channel table that contained the sound reference
         i = 0
         for line in tableChunk.lines:
             if line_is_command(line, "sound_ref"):
+                if i == soundID:
+                    tableChunk.lines.remove(line)
                 i += 1
-        tableChunk.add_child(newChunk)
-        self.dictionary[newChunk.name] = newChunk
-        tableChunk.lines.append(ReferenceCommand(get_command_id("sound_ref"), None, newChunk))
-        return i
+
+                if channelID == 7 and i > soundID:
+                    if not redcoins and line.reference.name == ".sound_menu_collect_red_coin":
+                        redcoins = True
+                        self.fix_hardcoded_ids_when_deleting(line.reference)
+                    elif not secrets and line.reference.name == ".sound_menu_collect_secret":
+                        secrets = True
+                        self.fix_hardcoded_ids_when_deleting(line.reference)
+            
+
+        # If chunk has no references left, delete it
+        if len(oldChunk.parents) == 0:
+            self.delete_chunk(oldChunk)
 
 
 def line_is_command(line, cmd):
