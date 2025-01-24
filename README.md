@@ -37,6 +37,8 @@ It is HIGHLY recommended to use Git to back up your repository before using this
     - From here, find and open the JSON file corresponding to the old streamed audio bank.
     - Find the line that says `"sample_bank": "streamed_audio",` and update this to whatever you renamed the streamed_audio folder to.
     - You will only have to do these steps once in order for your repo to now be compatible with the new tool.
+###
+- If you get an error saying "No module named 'aifc'", your Python version is too new. You will need to use a Python version that is 3.12 or earlier due to the aifc module being deprecated in Python 3.13. This will be fixed in the future.
 
 ## Command Line
 
