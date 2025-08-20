@@ -269,10 +269,19 @@ class ImportSfxTab(MainTab):
 
         self.defines = []
         self.defineEntryLayout = new_widget(self.defineLayout, QVBoxLayout)
-        self.add_define_row()
 
-        # Button for adding new row
-        _, self.addDefineButton = add_centered_button_to_layout(self.defineLayout, "Add...", self.add_define_row)
+        # Two buttons for adding and saving
+        buttonLayout = new_widget(self.defineLayout, QHBoxLayout)
+        addDefineButton = QPushButton(text="Add...")
+        addDefineButton.clicked.connect(self.add_define)
+        buttonLayout.addStretch(1)
+        buttonLayout.addWidget(addDefineButton)
+
+        saveDefinesButton = QPushButton(text="Save...")
+        saveDefinesButton.clicked.connect(self.update_defines)
+        buttonLayout.addStretch(1)
+        buttonLayout.addWidget(saveDefinesButton)
+        buttonLayout.addStretch(1)
 
         return defineFrame
 
@@ -280,18 +289,20 @@ class ImportSfxTab(MainTab):
     # Clear all define rows
     def clear_define_rows(self):
         while len(self.defines) > 0:
-            self.defineEntryLayout.removeWidget(self.defines[-1].widget)
+            if self.defines[-1].widget is not None:
+                self.defineEntryLayout.removeWidget(self.defines[-1].widget)
             self.defines.pop()
 
 
     # Add a new define row
-    def add_define_row(self, banks=None):
+    def add_define_row(self, name, priority, flags, banks=None, bank=None):
         defineLayout = new_widget(self.defineEntryLayout, QHBoxLayout)
         defineLayout.setContentsMargins(0, 0, 0, 0)
         defineLayout.addStretch(1)
 
         trashButton = QPushButton(text="X")
-        #trashButton.clicked.connect(lambda: self.remove_define_row(i))
+        l = len(self.defines)
+        trashButton.clicked.connect(lambda: self.remove_define(l))
         trashButton.setFixedSize(25, 25)
         defineLayout.addWidget(trashButton)
 
@@ -299,6 +310,7 @@ class ImportSfxTab(MainTab):
         if banks is not None:
             defineBank = QComboBox()
             defineBank.addItems(["Chn. "+str(bank) for bank in banks])
+            defineBank.setCurrentIndex(banks.index(bank) if bank is not None else 0)
             defineLayout.addWidget(defineBank)
             defineLayout.addStretch(1)
 
@@ -306,6 +318,7 @@ class ImportSfxTab(MainTab):
         defineLayout.addWidget(defineName)
         defineName.setFixedWidth(200)
         defineLayout.addStretch(1)
+        defineName.setText(name)
 
         defineLayout.addWidget(QLabel(text="Priority:"))
 
@@ -314,16 +327,75 @@ class ImportSfxTab(MainTab):
         defineLayout.addWidget(definePriority)
         definePriority.setMinimum(0)
         definePriority.setMaximum(255)
-        definePriority.setValue(128)
+        definePriority.setValue(priority)
         definePriority.setFixedWidth(50)
         defineLayout.addStretch(1)
 
         defineFlags = QPushButton(text="Set flags...")
+        defineFlags.flagsValue = flags
         #defineFlags.clicked.connect()
         defineLayout.addWidget(defineFlags)
         defineLayout.addStretch(1)
         self.defines.append(DefineRow(defineLayout.parentWidget(), defineBank, defineName, definePriority, defineFlags))
 
+    def construct_sfx_data(self, sfxListEntry, define):
+        # Construct SFX data from the define row
+        sfx = Sfx(
+            define=define.name.text(),
+            bank=sfxListEntry.bankIDs[define.bank.currentIndex() if define.bank is not None else 0],
+            id=sfxListEntry.sfxID,
+            priority=define.priority.value(),
+            flags=define.flags.flagsValue
+        )
+        print("Flags:", sfx.flags)
+        return sfx
+    
+    def update_defines(self):
+        item = self.sfxList.currentItem()
+        sfxListEntry = item.data(0, QtCore.Qt.ItemDataRole.UserRole)
+        # Construct list of new Sfx entries
+        newSfxs = [self.construct_sfx_data(sfxListEntry, define) for define in self.defines]
+        modify_sfx_defines(self.decomp, sfxListEntry.bankIDs, sfxListEntry.sfxID, newSfxs)
+        self.init_define_rows(sfxListEntry)
+
+    def remove_define(self, index):
+        # Remove widget
+        self.defineEntryLayout.removeWidget(self.defines[index].widget)
+        self.defines.pop(index)
+        self.update_defines()
+
+    def define_name_in_use(self, name):
+        for define in self.defines:
+            if define.name.text() == name:
+                return True
+        return False
+
+    # Determine default name for define
+    def get_new_define_name(self):
+        # Strip numbers from right side of name
+        name = self.selectedChunk.name[1:].upper()
+        if not name.startswith("SOUND_"):
+            name = "SOUND_" + name
+        if not self.define_name_in_use(name):
+            return name
+        while name[-1].isdigit():
+            name = name[:-1]
+        # Determine new name
+        i = 2
+        while True:
+            newName = name + str(i)
+            if not self.define_name_in_use(newName):
+                return newName
+            i += 1
+    
+    def add_define(self):
+        item = self.sfxList.currentItem()
+        sfxListEntry = item.data(0, QtCore.Qt.ItemDataRole.UserRole)
+        if len(sfxListEntry.bankIDs) > 1:
+            self.add_define_row(self.get_new_define_name(), 128, "SOUND_DISCRETE", sfxListEntry.bankIDs, sfxListEntry.bankIDs[0])
+        else:
+            self.add_define_row(self.get_new_define_name(), 128, "SOUND_DISCRETE")
+        self.update_defines()
 
     # Parse seq00 and load the full chunk dictionary
     def load_chunk_dictionary(self):
@@ -392,6 +464,23 @@ class ImportSfxTab(MainTab):
                 break
             i += 1
 
+    def init_define_rows(self, sfxListEntry=None):
+        self.clear_define_rows()
+        if sfxListEntry is None:
+            return
+
+        sounds_h = read_sfx_file(self.decomp)
+
+        for bank in sfxListEntry.bankIDs:
+            sfxs = get_sfx_defines_from_id(sounds_h, bank, sfxListEntry.sfxID)
+
+            for sfx in sfxs:
+                if len(sfxListEntry.bankIDs) > 1:
+                    self.add_define_row(sfx.define, sfx.priority, sfx.flags, sfxListEntry.bankIDs, bank)
+                else:
+                    self.add_define_row(sfx.define, sfx.priority, sfx.flags)
+
+
     # When a new sequence is selected, update some of the info on the right
     def sfxlist_selection_changed(self):
         item = self.sfxList.currentItem()
@@ -404,23 +493,9 @@ class ImportSfxTab(MainTab):
         
         self.selectedChunk = sfxListEntry.sfxChunk
         # Clear all define widgets
-        self.clear_define_rows()
         self.toggle_all_options()
         self.update_sound_name()
-
-        sounds_h = read_sfx_file(self.decomp)
-
-        for bank in sfxListEntry.bankIDs:
-            sfxs = get_sfx_defines_from_id(sounds_h, bank, sfxListEntry.sfxID)
-
-            for sfx in sfxs:
-                if len(sfxListEntry.bankIDs) > 1:
-                    self.add_define_row(sfxListEntry.bankIDs)
-                    self.defines[-1].bank.setCurrentIndex(sfxListEntry.bankIDs.index(bank))
-                else:
-                    self.add_define_row()
-                self.defines[-1].name.setText(sfx.define)
-                self.defines[-1].priority.setValue(sfx.priority)
+        self.init_define_rows(sfxListEntry)
 
 
     # Reload the sound effect list widget
@@ -429,25 +504,24 @@ class ImportSfxTab(MainTab):
         if len(self.sfxList.children()) > 0:
             self.sfxList.clear()
 
-        numBanks = len(self.chunkDictionary.bankTable)
-        duplicateBanks = []
-        for bankID in range(numBanks):
-            if bankID in duplicateBanks:
-                continue
+
+        print(self.chunkDictionary.bankTable)
+        for channelEntry in self.chunkDictionary.bankTable:
             # New top level item for every channel
-
             bankItem = QTreeWidgetItem(self.sfxList)
+            banks = channelEntry.banks
 
-            banks = self.chunkDictionary.bankTable[bankID].banks
             if len(banks) > 1:
-                text = "Channels %s (%s)" % ("/".join([str(bank) for bank in banks]), bankNames[bankID])
-                duplicateBanks.extend(banks)
+                text = "Channels %s" % ("/".join([str(bank) for bank in banks]))
             else:
-                text = "Channel %d (%s)" % (bankID, bankNames[bankID])
+                text = "Channel %d" % (banks[0])
+            smallestBank = min(banks)
+            if (smallestBank < len(bankNames)):
+                text += " (%s)" % (bankNames[smallestBank])
             bankItem.setText(0, text)
 
             # Add children for each sfx
-            tableChunk = self.chunkDictionary.bankTable[bankID].table
+            tableChunk = channelEntry.table
             allSfx = self.chunkDictionary.get_all_sound_refs_from_channel(tableChunk)
             for i, sfx in enumerate(allSfx):
                 sfxItem = QTreeWidgetItem(bankItem)

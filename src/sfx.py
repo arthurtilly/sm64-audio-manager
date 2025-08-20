@@ -63,7 +63,7 @@ def get_params_from_sounds_h_define(line):
 # Get the integer value of the sound flags
 def evaluate_sound_flags(flags):
     if flags == "0": return 0
-    val = 0
+    val = 1
     for flag in flags.split("|"):
         for soundFlag in soundFlags:
             if soundFlag[1] == flag.strip():
@@ -159,11 +159,16 @@ def fully_delete_sfx_define(lines, banks, id):
                         lines[i] = get_define_string(Sfx(defineName, bank, params[1] - 1, params[2], params[3]))
                         break
 
+# Deletes sound effects and re-adds the ones in the given list
+def modify_sfx_defines(decomp, banks, id, newSfxs):
+    sounds_h = read_sfx_file(decomp)
+    for bank in banks:
+        delete_sfx_defines_with_id(sounds_h, bank, id)
 
-def modify_sfx_defines(newSfxs):
-    # Step 1: Delete old sound defines
-    # Step 2: Add new sound defines
-    pass
+    for sfx in newSfxs:
+        add_sfx_define(sounds_h, sfx)
+
+    write_sfx_file(decomp, sounds_h)
 
 
 def delete_sfx(decomp, chunkDict, bankNo, id):
