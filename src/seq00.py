@@ -80,6 +80,18 @@ class ReferenceCommand:
             else:
                 raise ValueError("Error: Could not find chunk " + self.reference)
 
+class InstrCommand:
+    def __init__(self, isLayer, instrument):
+        self.isLayer = isLayer
+        self.bank = None
+        self.instrument = instrument
+
+    def get_str(self):
+        if (self.isLayer):
+            return "layer_setinstr %d" % self.instrument
+        else:
+            return "chan_setinstr %d" % self.instrument
+
 
 class SequencePlayerChunk:
     def __init__(self, name, type):
@@ -128,18 +140,31 @@ class SequencePlayerChunk:
                 ref = ReferenceCommand(i, param, reference)
                 self.lines.append(ref)
                 return not hasReturn
-
+        # Check if line is an instrument command
+        if lineSplit[0] == "layer_setinstr" or lineSplit[0] == "chan_setinstr":
+            self.lines.append(InstrCommand(lineSplit[0] == "layer_setinstr", int(lineSplit[1])))
+            return False
         # If not, just add the line as a string
         self.lines.append(line)
         return False
 
     # Resolve references for all lines
-    def resolve_references(self, chunkDict):
+    def resolve_references(self, chunkDict, bank=None):
         for line in self.lines:
-            if type(line) == ReferenceCommand and not line.resolved:
-                line.resolve_command(chunkDict)
-                self.add_child(line.reference)
-
+            if type(line) == ReferenceCommand:
+                if not line.resolved:
+                    line.resolve_command(chunkDict)
+                    self.add_child(line.reference)
+                if line.commandID == get_command_id("chan_setlayer"):
+                    line.reference.resolve_references(chunkDict, bank)
+            elif type(line) == InstrCommand:
+                if bank is not None:
+                    line.bank = bank
+            else:
+                lineSplit = line.split(" ")
+                # Check for regular channel setting bank/instruments
+                if lineSplit[0] == "chan_setbank":
+                    bank = int(lineSplit[1])
 
 @dataclass
 class ChannelEntry:
@@ -334,7 +359,7 @@ class ChunkDictionary:
                 # Get the subtracted value
                 subtractedValue = int(line.split(" ")[1].strip()[2:], 16)
                 chunk.lines[i] = f"chan_subtract 0x{subtractedValue - 1:02X}"
-                
+
 
     
     # Delete a sound reference from a channel table
@@ -378,8 +403,3 @@ def get_command_id(cmd):
         if referenceCommands[i][0] == cmd:
             return i
     return None
-
-
-#chunkdict = ChunkDictionary("U:/home/arthur/HackerSM64/sound/sequences/00_sound_player.s")
-#print(chunkdict.bankTable)
-
