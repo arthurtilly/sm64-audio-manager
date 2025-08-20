@@ -1,8 +1,6 @@
 import warnings
 warnings.filterwarnings("ignore", category=DeprecationWarning)
 
-import os
-import aifc
 from dataclasses import dataclass
 
 from PyQt6.QtWidgets import *
@@ -63,7 +61,7 @@ class ImportSfxTab(MainTab):
 
         self.load_sfx_list()
         self.sfxList.setCurrentItem(self.sfxList.topLevelItem(0))
-
+        self.sfxList.itemChanged.connect(self.sfx_item_changed)
         self.sfxList.itemSelectionChanged.connect(self.sfxlist_selection_changed)
         self.layout.addWidget(self.sfxList)
         self.layout.setStretchFactor(self.sfxList, 0)
@@ -73,6 +71,7 @@ class ImportSfxTab(MainTab):
         self.sfxList.setVerticalScrollBar(vsb)
     
         optionsLayout = new_widget(self.layout, QVBoxLayout, spacing=5)
+        optionsLayout.addStretch(1)
 
         addEntriesLabel = QLabel(text="Add/remove sound entries:")
         optionsLayout.addWidget(addEntriesLabel)
@@ -141,11 +140,6 @@ class ImportSfxTab(MainTab):
         deleteButton = QPushButton(text="Delete")
         deleteButton.clicked.connect(self.delete_pressed)
         buttonLayout.addWidget(deleteButton)
-
-        buttonLayout.addStretch(1)
-        renameButton = QPushButton(text="Rename")
-        renameButton.clicked.connect(self.rename_pressed)
-        buttonLayout.addWidget(renameButton)
 
         buttonLayout.addStretch(1)
 
@@ -347,7 +341,6 @@ class ImportSfxTab(MainTab):
             priority=define.priority.value(),
             flags=define.flags.flagsValue
         )
-        print("Flags:", sfx.flags)
         return sfx
     
     def update_defines(self):
@@ -500,12 +493,11 @@ class ImportSfxTab(MainTab):
 
     # Reload the sound effect list widget
     def load_sfx_list(self):
+        self.sfxList.blockSignals(True)
         # Check if the sequence list tree widget is already loaded and clear it
         if len(self.sfxList.children()) > 0:
             self.sfxList.clear()
 
-
-        print(self.chunkDictionary.bankTable)
         for channelEntry in self.chunkDictionary.bankTable:
             # New top level item for every channel
             bankItem = QTreeWidgetItem(self.sfxList)
@@ -527,7 +519,9 @@ class ImportSfxTab(MainTab):
                 sfxItem = QTreeWidgetItem(bankItem)
                 sfxItem.setText(0, sfx.name[1:])
                 sfxItem.setData(0, QtCore.Qt.ItemDataRole.UserRole, SfxListEntry(sfx, banks, i))
+                sfxItem.setFlags(sfxItem.flags() | QtCore.Qt.ItemFlag.ItemIsEditable)
 
+        self.sfxList.blockSignals(False)
 
     # Update IDs for all children of a bank list item
     def update_sfx_ids(self, bankItem):
@@ -554,15 +548,14 @@ class ImportSfxTab(MainTab):
         self.sfxlist_selection_changed()
 
     # Rename currently selected sfx
-    def rename_pressed(self):
+    def sfx_item_changed(self, sfxItem):
         try:
             # Validate name
-            validate_name(self.soundName.text(), "sound name")
-            if self.chunkDictionary.dictionary.get("." + self.soundName.text()) is not None:
-                raise AudioManagerException(f"Sound {self.soundName.text()} already exists")
+            name = sfxItem.text(0)
+            validate_name(name, "sound name")
 
             oldName = self.selectedChunk.name
-            self.selectedChunk.name = "." + self.soundName.text()
+            self.selectedChunk.name = "." + name
 
             # Hacky way to maintain dictionary order while modifying keys by reconstructing it
             keyOrder = list(self.chunkDictionary.dictionary.keys())
@@ -572,17 +565,8 @@ class ImportSfxTab(MainTab):
             self.chunkDictionary.dictionary = {key: self.chunkDictionary.dictionary[key] for key in keyOrder}
 
             self.chunkDictionary.reconstruct_sequence_player()
-            # Iterate over every item to update names
-            for i in range(self.sfxList.topLevelItemCount()):
-                bankItem = self.sfxList.topLevelItem(i)
-                for j in range(bankItem.childCount()):
-                    sfxItem = bankItem.child(j)
-                    sfxListEntry = sfxItem.data(0, QtCore.Qt.ItemDataRole.UserRole)
-                    if sfxListEntry.sfxChunk.name == self.selectedChunk.name:
-                        sfxItem.setText(0, self.soundName.text())
-            
-            self.update_sound_name()
 
         except AudioManagerException as e:
+            sfxItem.setText(0, self.selectedChunk.name[1:])
             self.set_info_message("Error: " + str(e), COLOR_RED)
             return

@@ -15,6 +15,7 @@ if "decomp" in persistent:
 from tab_music import *
 from tab_convert import *
 from tab_sfx import *
+from tab_soundbank import *
 
 from PyQt6.QtWidgets import *
 from PyQt6.QtGui import *
@@ -84,7 +85,8 @@ class MainWindow(QWidget):
         self.tabs = []
 
         self.add_tab(StreamedMusicTab, "Streamed Music")
-        self.add_tab(ImportSfxTab, "Import SFX")
+        self.add_tab(ImportSfxTab, "Sound Effects")
+        self.add_tab(SoundbankTab, "Soundbanks")
         self.add_tab(ConvertAudioTab, "Convert Audio")
 
 

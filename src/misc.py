@@ -142,7 +142,6 @@ def scan_all_sequences(decomp):
 
     return allSeqs
 
-
 # Locate and load a C table from a file
 def load_table(tablePath, tableIdentifier):
     with open(tablePath, "r") as f:
