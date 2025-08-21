@@ -86,7 +86,7 @@ class MainWindow(QWidget):
 
         self.add_tab(StreamedMusicTab, "Streamed Music")
         self.add_tab(ImportSfxTab, "Sound Effects")
-        self.add_tab(SoundbankTab, "Soundbanks")
+        self.add_tab(SoundbankTab, "Instruments")
         self.add_tab(ConvertAudioTab, "Convert Audio")
 
 

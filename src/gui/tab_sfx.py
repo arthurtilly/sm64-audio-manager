@@ -44,7 +44,7 @@ class DefineRow:
 class ImportSfxTab(MainTab):
     # Create the regular page for importing sequences
     def create_page(self):
-        self.load_chunk_dictionary()
+        self.chunkDictionary = ChunkDictionary(self.decomp)
         self.selectedChunk = None
 
         self.sampleLoaded = False
@@ -285,6 +285,7 @@ class ImportSfxTab(MainTab):
         while len(self.defines) > 0:
             if self.defines[-1].widget is not None:
                 self.defineEntryLayout.removeWidget(self.defines[-1].widget)
+                self.defines[-1].widget.deleteLater()
             self.defines.pop()
 
 
@@ -389,11 +390,6 @@ class ImportSfxTab(MainTab):
         else:
             self.add_define_row(self.get_new_define_name(), 128, "SOUND_DISCRETE")
         self.update_defines()
-
-    # Parse seq00 and load the full chunk dictionary
-    def load_chunk_dictionary(self):
-        self.chunkDictionary = ChunkDictionary(self.decomp)
-
 
     # Switch between having all options enabled or disabled
     def toggle_options(self, options, enabled):

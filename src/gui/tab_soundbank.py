@@ -9,9 +9,12 @@ from gui_misc import *
 append_parent_dir()
 from misc import *
 from soundbank import *
+from seq00 import *
 
 class SoundbankTab(MainTab):
     def create_page(self):
+        self.chunkDictionary = ChunkDictionary(self.decomp)
+
         self.layout = QHBoxLayout()
         self.layout.setContentsMargins(0, 0, 0, 0)
         self.layout.setSpacing(0)
@@ -28,13 +31,24 @@ class SoundbankTab(MainTab):
         self.soundbanks = scan_all_soundbanks(self.decomp)
         self.load_soundbank_list()
         self.soundbankList.itemChanged.connect(self.tree_item_changed)
+        self.soundbankList.itemSelectionChanged.connect(self.inst_selection_changed)
+
+        self.selectedSoundbank = None
+        self.selectedInstrument = None
 
         optionsLayout = new_widget(self.layout, QVBoxLayout, spacing=5)
+        optionsLayout.addStretch(1)
+
         addEntriesLabel = QLabel(text="Add/remove instruments:")
         optionsLayout.addWidget(addEntriesLabel)
-        optionsLayout.addStretch(1)
         instrumentFrame = self.create_instrument_frame(optionsLayout)
         optionsLayout.addStretch(1)
+
+        instrumentNameLabel = QLabel(text="Referenced in sound effects:")
+        optionsLayout.addWidget(instrumentNameLabel)
+        referenceFrame = self.create_references_frame(optionsLayout)
+        optionsLayout.addStretch(1)
+
         self.importInfoLabel = QLabel(text="")
         self.importInfoLabel.setAlignment(QtCore.Qt.AlignmentFlag.AlignCenter)
         optionsLayout.addWidget(self.importInfoLabel)
@@ -75,6 +89,71 @@ class SoundbankTab(MainTab):
 
         return instrumentFrame
     
+    def create_references_frame(self, layout):
+        referenceFrame = QFrame()
+        referenceLayout = QVBoxLayout(referenceFrame)
+        layout.addWidget(referenceFrame)
+        referenceFrame.setFrameShape(QFrame.Shape.StyledPanel)
+        referenceFrame.setLayout(referenceLayout)
+        
+        self.references = referenceLayout
+        self.add_reference("No instrument selected...")
+
+    # Deletes all widgets in self.references
+    def clear_references(self):
+        # Delete all contained widgets
+        while self.references.layout().count():
+            widget = self.references.layout().itemAt(0).widget()
+            self.references.layout().removeWidget(widget)
+            widget.deleteLater()
+
+    def get_references(self, bankIndex, instIndex):
+        refs = []
+        for name, chunk in self.chunkDictionary.dictionary.items():
+            if chunk.type != CHUNK_TYPE_CHANNEL:
+                continue
+            for instrument in chunk.instruments:
+                if instrument[0] == bankIndex and instrument[1] == instIndex:
+                    refs.append(name[1:])
+        return refs
+    
+    def add_reference(self, text):
+        referenceLabel = QLabel(text=text, alignment=QtCore.Qt.AlignmentFlag.AlignCenter)
+        self.references.layout().addWidget(referenceLabel)
+
+    def update_references(self):
+        self.clear_references()
+        if self.selectedInstrument is None:
+            self.add_reference("No instrument selected...")
+            return
+        bankIndex = soundbank_get_sfx_index(self.decomp, self.selectedSoundbank.text(0))
+        if bankIndex == -1:
+            self.add_reference("Selected soundbank is not a SFX bank.")
+            return
+
+        instIndex = self.selectedSoundbank.indexOfChild(self.selectedInstrument)
+        refs = self.get_references(bankIndex, instIndex)
+        if len(refs) == 0:
+            self.add_reference("This instrument is unused.")
+            return
+        if len(refs) >= 12:
+            numExtraRefs = len(refs) - 10
+            refs = refs[-10:]
+            refs.append(f"...and {numExtraRefs} more")
+        for ref in refs:
+            self.add_reference(ref)
+
+    def inst_selection_changed(self):
+        selectedItem = self.soundbankList.currentItem()
+        if selectedItem is not None:
+            if selectedItem.parent() is not None:
+                self.selectedInstrument = selectedItem
+                self.selectedSoundbank = selectedItem.parent()
+            else:
+                self.selectedSoundbank = selectedItem
+                self.selectedInstrument = None
+        self.update_references()
+
     # Change the info message
     def set_info_message(self, message, colour):
         self.importInfoLabel.setText(message)

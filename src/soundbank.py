@@ -64,6 +64,14 @@ def get_instruments(decomp, soundbankName):
         jsonData = json.load(jsonFile)
     return jsonData.get("instrument_list", [])
 
+def soundbank_get_sfx_index(decomp, soundbankName):
+    sequencesJsonPath = os.path.join(decomp, "sound", "sequences.json")
+    with open(sequencesJsonPath, "r") as jsonFile:
+        sequencesData = json.load(jsonFile)
+    if not soundbankName in sequencesData["00_sound_player"]:
+        return -1
+    return sequencesData["00_sound_player"].index(soundbankName)
+
 def rename_soundbank(decomp, oldSoundbank, newSoundbank):
     validate_name(newSoundbank, "soundbank name")
     if os.path.exists(os.path.join(decomp, "sound", "sound_banks", f"{newSoundbank}.json")):

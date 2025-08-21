@@ -101,6 +101,7 @@ class SequencePlayerChunk:
         self.parents = [] # All chunks that reference this chunk
         self.lines = [] # Lines of commands, either strings or reference commands
         self.followingChunk = None
+        self.instruments = None # Tuples of bank/instrument pairs used by this and child layers
 
     def __repr__(self):
         return "Chunk " + self.name
@@ -165,6 +166,23 @@ class SequencePlayerChunk:
                 # Check for regular channel setting bank/instruments
                 if lineSplit[0] == "chan_setbank":
                     bank = int(lineSplit[1])
+
+        # Build instrument list for channels only to know which are referenced
+        if (self.type != CHUNK_TYPE_CHANNEL):
+            return
+        self.instruments = []
+        for line in self.lines:
+            if type(line) == InstrCommand:
+                self.instruments.append((line.bank, line.instrument))
+            elif type(line) == ReferenceCommand:
+                layer = line.reference
+                if layer is None:
+                    continue
+                for layerline in layer.lines:
+                    if type(layerline) == InstrCommand:
+                        self.instruments.append((layerline.bank, layerline.instrument))
+        # Remove duplicates
+        self.instruments = list(set(self.instruments))
 
 @dataclass
 class ChannelEntry:
