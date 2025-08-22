@@ -1,6 +1,3 @@
-import warnings
-warnings.filterwarnings("ignore", category=DeprecationWarning)
-
 from PyQt6.QtWidgets import *
 from PyQt6.QtGui import *
 from PyQt6 import QtCore
@@ -37,13 +34,17 @@ class SoundbankTab(MainTab):
         self.selectedInstrument = None
 
         optionsLayout = new_widget(self.layout, QVBoxLayout, spacing=5)
-        optionsLayout.addStretch(1)
 
         addEntriesLabel = QLabel(text="Add/remove instruments:")
         optionsLayout.addWidget(addEntriesLabel)
         instrumentFrame = self.create_instrument_frame(optionsLayout)
-        optionsLayout.addStretch(1)
 
+        sampleLabel = QLabel(text="Sample data:")
+        optionsLayout.addWidget(sampleLabel)
+        sampleFrame = self.create_sample_frame(optionsLayout)
+        optionsLayout.addWidget(sampleFrame)
+
+        optionsLayout.addStretch(1)
         instrumentNameLabel = QLabel(text="Referenced in sound effects:")
         optionsLayout.addWidget(instrumentNameLabel)
         referenceFrame = self.create_references_frame(optionsLayout)
@@ -54,7 +55,7 @@ class SoundbankTab(MainTab):
         optionsLayout.addWidget(self.importInfoLabel)
         optionsLayout.addStretch(1)
 
-        self.toggleRequiresBank = (instrumentFrame,addEntriesLabel,)
+        self.toggleRequiresBank = (instrumentFrame,addEntriesLabel,sampleLabel, sampleFrame)
         self.toggleRequiresBankAndInstrument = (instrumentNameLabel,referenceFrame,)
         self.toggle_all_options()
 
@@ -83,6 +84,40 @@ class SoundbankTab(MainTab):
         instrumentLayout.addStretch(1)
 
         return instrumentFrame
+    
+    def create_sample_frame(self, layout):
+        sampleFrame = QFrame()
+        sampleLayout = QVBoxLayout(sampleFrame)
+        layout.addWidget(sampleFrame)
+        sampleFrame.setFrameShape(QFrame.Shape.StyledPanel)
+        sampleFrame.setLayout(sampleLayout)
+
+        # Sample dropdown
+        sampleRow = new_widget(sampleLayout, QHBoxLayout)
+        sampleRow.layout().addStretch(1)
+        sampleLabel = QLabel(text="Sample:")
+        sampleRow.layout().addWidget(sampleLabel)
+        self.sampleDropdown = QComboBox()
+        self.sampleDropdown.setMinimumWidth(150)
+        sampleRow.layout().addWidget(self.sampleDropdown)
+        sampleRow.layout().addStretch(1)
+
+        # Release rate
+        releaseRateRow = new_widget(sampleLayout, QHBoxLayout)
+        releaseRateRow.layout().addStretch(1)
+        releaseRateLabel = QLabel(text="Release Rate:")
+        releaseRateRow.layout().addWidget(releaseRateLabel)
+        sampleLayout.addLayout(releaseRateRow)
+        self.releaseRate = QLineEdit()
+        self.releaseRate.setMaximumWidth(40)
+        self.releaseRate.setValidator(QIntValidator())
+        releaseRateRow.layout().addWidget(self.releaseRate)
+        releaseRateRow.layout().addStretch(1)
+
+        sampleRow.layout().setContentsMargins(0, 0, 0, 0)
+        releaseRateRow.layout().setContentsMargins(0, 0, 0, 0)
+
+        return sampleFrame
     
     def create_references_frame(self, layout):
         referenceFrame = QFrame()
@@ -145,6 +180,25 @@ class SoundbankTab(MainTab):
         for ref in refs:
             self.add_reference(ref)
         return False
+    
+    def update_sample_data(self):
+        self.sampleDropdown.clear()
+        self.releaseRate.clear()
+        if self.selectedInstrument is None:
+            return
+        if self.selectedInstrument.text(0) == "<Empty>":
+            return
+        # Init sample dropdown
+        sampleBank = get_sample_bank(self.decomp, self.selectedSoundbank.text(0))
+        self.sampleDropdown.addItems(get_all_samples_in_bank(self.decomp, sampleBank))
+
+        instData = get_instrument_data(self.decomp, self.selectedSoundbank.text(0), self.selectedInstrument.text(0))
+        selectedSample = instData["sound"]
+        releaseRate = instData["release_rate"]
+        if type(selectedSample) == dict:
+            selectedSample = selectedSample["sample"]
+        self.sampleDropdown.setCurrentText(selectedSample + ".aiff")
+        self.releaseRate.setText(str(releaseRate))
 
     def inst_selection_changed(self):
         selectedItem = self.soundbankList.currentItem()
@@ -155,6 +209,7 @@ class SoundbankTab(MainTab):
             else:
                 self.selectedSoundbank = selectedItem
                 self.selectedInstrument = None
+        self.update_sample_data()
         deleteEnabled = self.update_references()
         self.deleteButton.setEnabled(deleteEnabled)
         self.toggle_all_options()

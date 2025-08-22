@@ -1,7 +1,6 @@
 import os
-import aifc
+import soundfile as sf
 import json
-
 
 class AudioManagerException(Exception):
     pass
@@ -67,9 +66,8 @@ def calculate_loops(file, loopBeginSamples, loopBeginMilli, loopEndSamples, loop
     begin = loopBeginSamples
     end = loopEndSamples
 
-    aiffFile = aifc.open(file, "r")
-    sampleRate = aiffFile.getframerate()
-    aiffFile.close()
+    with sf.SoundFile(file) as snd:
+        sampleRate = snd.samplerate
 
     if loopBeginMilli is not None:
         begin = int(sampleRate * loopBeginMilli / 1000)
@@ -101,10 +99,10 @@ def calculate_panning(pan, numChannels):
  
 # Estimate the size of an audio file
 def estimate_audio_size(audioPath):
-    aiffFile = aifc.open(audioPath, "r")
-    nframes = aiffFile.getnframes()
-    size = nframes * aiffFile.getnchannels() * 9 / 16
-    aiffFile.close()
+    with sf.SoundFile(audioPath) as snd:
+        nframes = len(snd)  # same as snd.frames
+        nchannels = snd.channels
+    size = nframes * nchannels * 9 / 16
     return size / 1048576
 
 

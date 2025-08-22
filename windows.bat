@@ -21,6 +21,7 @@ if %errorlevel% neq 0 (
 REM Install Python dependencies
 python -m pip install PyQt6
 python -m pip install av
+python -m pip install soundfile
 
 REM Run GUI
 python src/gui/gui_main.py

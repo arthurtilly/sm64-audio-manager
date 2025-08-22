@@ -16,7 +16,7 @@ def create_soundbank(decomp, name, samples):
         "date": datetime.datetime.now().strftime("%Y-%m-%d"),
         "sample_bank": "streamed_audio",
         "envelopes": {
-            "envelope": [
+            "envelope0": [
                 [6, 32700],
                 [6, 32700],
                 [32700, 29430],
@@ -32,7 +32,7 @@ def create_soundbank(decomp, name, samples):
 
         jsonData["instruments"]["channel_%d" % (i + 1)] = {
             "release_rate": 10,
-            "envelope": "envelope",
+            "envelope": "envelope0",
             "sound": sampleName
         }
 
@@ -52,20 +52,20 @@ def save_soundbank(decomp, soundbank, jsonData):
     with open(soundbankPath, "w") as jsonFile:
         json.dump(jsonData, jsonFile, indent=4)
 
+def sort_with_hex_prefix(array):
+    def sort_key(item):
+        try:
+            return (0, int(item[:2], 16), item[2:])
+        except ValueError:
+            return (1, item)
+
+    return sorted(array, key=sort_key)
+
 # Scan soundbank folder and return sorted list
 def scan_all_soundbanks(decomp):
     soundbankPath = os.path.join(decomp, "sound", "sound_banks")
     soundbankFiles = [os.path.splitext(f)[0] for f in os.listdir(soundbankPath) if f.endswith(".json")]
-
-    # Hex digit sorting + alphabetical sorting fallback
-    def sort_key(filename):
-        prefix = filename[:2]
-        try:
-            return (0, int(prefix, 16), filename[2:])
-        except ValueError:
-            return (1, filename)
-
-    return sorted(soundbankFiles, key=sort_key)
+    return sort_with_hex_prefix(soundbankFiles)
 
 def get_instruments(decomp, soundbankName):
     return open_soundbank(decomp, soundbankName).get("instrument_list", [])
@@ -138,3 +138,15 @@ def add_instrument(decomp, soundbank, index):
     jsonData = open_soundbank(decomp, soundbank)
     jsonData["instrument_list"].insert(index, None)
     save_soundbank(decomp, soundbank, jsonData)
+
+def get_sample_bank(decomp, soundbank):
+    jsonData = open_soundbank(decomp, soundbank)
+    return jsonData["sample_bank"]
+
+def get_all_samples_in_bank(decomp, samplebank):
+    sampleFolder = os.path.join(decomp, "sound", "samples", samplebank)
+    return sort_with_hex_prefix([f for f in os.listdir(sampleFolder) if f.endswith(".aiff")])
+
+def get_instrument_data(decomp, soundbank, inst):
+    jsonData = open_soundbank(decomp, soundbank)
+    return jsonData["instruments"][inst]

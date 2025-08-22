@@ -1,9 +1,5 @@
-import warnings
-warnings.filterwarnings("ignore", category=DeprecationWarning)
-
 import os, sys
 import json
-import aifc
 
 import m64, aiff, soundbank
 from misc import *

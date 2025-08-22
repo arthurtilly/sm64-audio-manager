@@ -1,6 +1,3 @@
-import warnings
-warnings.filterwarnings("ignore", category=DeprecationWarning)
-
 from dataclasses import dataclass
 
 from PyQt6.QtWidgets import *

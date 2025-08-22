@@ -1,8 +1,5 @@
-import warnings
-warnings.filterwarnings("ignore", category=DeprecationWarning)
-
 import os
-import aifc
+
 
 from PyQt6.QtWidgets import *
 from PyQt6.QtGui import *
@@ -312,8 +309,10 @@ class StreamedMusicTab(MainTab):
 
         # Attempt to open file
         try:
-            aiffFile = aifc.open(self.selectedSoundFile, "r")
-        except aifc.Error:
+            with sf.SoundFile(path) as snd:
+                nframes = len(snd)
+                nchannels = snd.channels
+        except sf.SoundFileError:
             # Invalid AIFF file
             self.selectedFileLabel.setText("Selected audio file: None")
             self.estimatedSizeLabel.setText("")
@@ -331,8 +330,8 @@ class StreamedMusicTab(MainTab):
         self.selectedFileLabel.setText("Selected audio file: " + os.path.basename(self.selectedSoundFile))
 
         # Determine number of channels and initialise notebook for panning tabs
-        self.resize_panning_frame(aiffFile.getnchannels())
-        if aiffFile.getnchannels() == 2:
+        self.resize_panning_frame(nchannels)
+        if nchannels == 2:
             self.pans[0][2].setValue(-63)
             self.pans[1][2].setValue(63)
         else:
@@ -340,11 +339,10 @@ class StreamedMusicTab(MainTab):
                 self.pans[i][2].setValue(0)
 
         self.panning_changed(None)
-        aiffFile.close()
         
         # Initialise other data fields
         self.loopBegin.setText("0")
-        self.loopEnd.setText(str(aiffFile.getnframes()))
+        self.loopEnd.setText(str(nframes))
         filename = os.path.splitext(os.path.basename(self.selectedSoundFile))[0].replace(' ', '_')
         self.sequenceName.setText("SEQ_%s" % filename.upper())
         # If a vanilla sequence, don't change the sequence filename to be safe
