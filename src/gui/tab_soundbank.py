@@ -54,6 +54,10 @@ class SoundbankTab(MainTab):
         optionsLayout.addWidget(self.importInfoLabel)
         optionsLayout.addStretch(1)
 
+        self.toggleRequiresBank = (instrumentFrame,addEntriesLabel,)
+        self.toggleRequiresBankAndInstrument = (instrumentNameLabel,referenceFrame,)
+        self.toggle_all_options()
+
     def create_instrument_frame(self, layout):
         instrumentFrame = QFrame()
         instrumentLayout = QVBoxLayout()
@@ -81,9 +85,9 @@ class SoundbankTab(MainTab):
         buttonLayout.addWidget(insertAboveButton)
 
         buttonLayout.addStretch(1)
-        deleteButton = QPushButton(text="Delete")
-       # deleteButton.clicked.connect(self.delete_pressed)
-        buttonLayout.addWidget(deleteButton)
+        self.deleteButton = QPushButton(text="Delete")
+        self.deleteButton.clicked.connect(self.delete_pressed)
+        buttonLayout.addWidget(self.deleteButton)
 
         buttonLayout.addStretch(1)
 
@@ -98,6 +102,12 @@ class SoundbankTab(MainTab):
         
         self.references = referenceLayout
         self.add_reference("No instrument selected...")
+
+        return referenceFrame
+
+    def toggle_all_options(self):
+        self.toggle_options(self.toggleRequiresBank, self.selectedSoundbank is not None)
+        self.toggle_options(self.toggleRequiresBankAndInstrument, self.selectedInstrument is not None)
 
     # Deletes all widgets in self.references
     def clear_references(self):
@@ -121,27 +131,29 @@ class SoundbankTab(MainTab):
         referenceLabel = QLabel(text=text, alignment=QtCore.Qt.AlignmentFlag.AlignCenter)
         self.references.layout().addWidget(referenceLabel)
 
+    # Return value is if deletion is possible
     def update_references(self):
         self.clear_references()
         if self.selectedInstrument is None:
             self.add_reference("No instrument selected...")
-            return
+            return False
         bankIndex = soundbank_get_sfx_index(self.decomp, self.selectedSoundbank.text(0))
         if bankIndex == -1:
             self.add_reference("Selected soundbank is not a SFX bank.")
-            return
+            return True
 
         instIndex = self.selectedSoundbank.indexOfChild(self.selectedInstrument)
         refs = self.get_references(bankIndex, instIndex)
         if len(refs) == 0:
             self.add_reference("This instrument is unused.")
-            return
+            return True
         if len(refs) >= 12:
             numExtraRefs = len(refs) - 10
             refs = refs[-10:]
             refs.append(f"...and {numExtraRefs} more")
         for ref in refs:
             self.add_reference(ref)
+        return False
 
     def inst_selection_changed(self):
         selectedItem = self.soundbankList.currentItem()
@@ -152,7 +164,9 @@ class SoundbankTab(MainTab):
             else:
                 self.selectedSoundbank = selectedItem
                 self.selectedInstrument = None
-        self.update_references()
+        deleteEnabled = self.update_references()
+        self.deleteButton.setEnabled(deleteEnabled)
+        self.toggle_all_options()
 
     # Change the info message
     def set_info_message(self, message, colour):
@@ -202,3 +216,20 @@ class SoundbankTab(MainTab):
             self.soundbank_name_changed(item)
         else:
             self.instrument_name_changed(item)
+
+    def delete_pressed(self):
+        if self.selectedInstrument is None:
+            return
+        try:
+            bankIndex = soundbank_get_sfx_index(self.decomp, self.selectedSoundbank.text(0))
+            instIndex = self.selectedSoundbank.indexOfChild(self.selectedInstrument)
+            # If deleted instrument is used in seq00, update all instrument IDs
+            if bankIndex != -1:
+                self.chunkDictionary.delete_instrument(bankIndex, instIndex)
+                self.chunkDictionary.reconstruct_sequence_player()
+            delete_instrument(self.decomp, self.selectedSoundbank.text(0), instIndex)
+            self.selectedSoundbank.removeChild(self.selectedInstrument)
+            self.selectedInstrument = None
+            self.inst_selection_changed()
+        except AudioManagerException as e:
+            self.set_info_message("Error: " + str(e), COLOR_RED)

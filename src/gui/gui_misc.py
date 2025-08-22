@@ -59,3 +59,8 @@ class MainTab(QWidget):
 
     def set_audio_file(self, path):
         pass
+
+    # Switch between having all options enabled or disabled
+    def toggle_options(self, options, enabled):
+        for widget in options:
+            widget.setEnabled(enabled)

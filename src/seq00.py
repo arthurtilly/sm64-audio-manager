@@ -263,7 +263,7 @@ class ChunkDictionary:
     def write_chunk_to_file(self, chunk, f):
         f.write("\n" + chunk.name + ":\n")
         for line in chunk.lines:
-            if type(line) == ReferenceCommand:
+            if type(line) == ReferenceCommand or type(line) == InstrCommand:
                 f.write(line.get_str() + "\n")
             else:
                 f.write(line + "\n")
@@ -411,7 +411,24 @@ class ChunkDictionary:
         # If chunk has no references left, delete it
         if len(oldChunk.parents) == 0:
             self.delete_chunk(oldChunk)
-
+    
+    def delete_instrument(self, bank, inst):
+        for name, chunk in self.dictionary.items():
+            if chunk.type != CHUNK_TYPE_CHANNEL and chunk.type != CHUNK_TYPE_LAYER:
+                continue
+            if chunk.instruments is None:
+                continue
+            for line in chunk.lines:
+                if type(line) == InstrCommand:
+                    if line.bank == bank and line.instrument > inst:
+                        line.instrument -= 1
+            newInsts = []
+            for instrument in chunk.instruments:
+                if instrument[0] == bank and instrument[1] > inst:
+                    newInsts.append((instrument[0], instrument[1] - 1))
+                else:
+                    newInsts.append(instrument)
+            chunk.instruments = newInsts
 
 def line_is_command(line, cmd):
     return type(line) == ReferenceCommand and referenceCommands[line.commandID][0] == cmd

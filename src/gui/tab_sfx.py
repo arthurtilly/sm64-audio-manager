@@ -91,22 +91,9 @@ class ImportSfxTab(MainTab):
 
         optionsLayout.addStretch(1)
 
-        self.toggleRequiresSample = (
-            loopInfoWidget,
-            sampleNameWidget,
-            noteWidget,
-        )
-
-        self.toggleRequiresSound = (
-            defineFrame,
-            addEntriesLabel,
-            soundFrame,
-        )
-
-        self.toggleRequiresBoth = (
-            importWidget,
-        )
-
+        self.toggleRequiresSample = (loopInfoWidget,sampleNameWidget,noteWidget,)
+        self.toggleRequiresSound = (defineFrame, addEntriesLabel, soundFrame)
+        self.toggleRequiresBoth = (importWidget,)
         self.toggle_all_options()
 
     
@@ -390,11 +377,6 @@ class ImportSfxTab(MainTab):
         else:
             self.add_define_row(self.get_new_define_name(), 128, "SOUND_DISCRETE")
         self.update_defines()
-
-    # Switch between having all options enabled or disabled
-    def toggle_options(self, options, enabled):
-        for widget in options:
-            widget.setEnabled(enabled)
 
     def toggle_all_options(self):
         self.toggle_options(self.toggleRequiresSample, self.sampleLoaded)

@@ -42,6 +42,15 @@ def create_soundbank(decomp, name, samples):
     with open(os.path.join(decomp, "sound", "sound_banks", "%s.json" % name), "w") as jsonFile:
         json.dump(jsonData, jsonFile, indent=4)
 
+def open_soundbank(decomp, soundbank):
+    soundbankPath = os.path.join(decomp, "sound", "sound_banks", "%s.json" % soundbank)
+    with open(soundbankPath, "r") as jsonFile:
+        return json.load(jsonFile)
+    
+def save_soundbank(decomp, soundbank, jsonData):
+    soundbankPath = os.path.join(decomp, "sound", "sound_banks", "%s.json" % soundbank)
+    with open(soundbankPath, "w") as jsonFile:
+        json.dump(jsonData, jsonFile, indent=4)
 
 # Scan soundbank folder and return sorted list
 def scan_all_soundbanks(decomp):
@@ -59,10 +68,7 @@ def scan_all_soundbanks(decomp):
     return sorted(soundbankFiles, key=sort_key)
 
 def get_instruments(decomp, soundbankName):
-    soundbankPath = os.path.join(decomp, "sound", "sound_banks", "%s.json" % soundbankName)
-    with open(soundbankPath, "r") as jsonFile:
-        jsonData = json.load(jsonFile)
-    return jsonData.get("instrument_list", [])
+    return open_soundbank(decomp, soundbankName).get("instrument_list", [])
 
 def soundbank_get_sfx_index(decomp, soundbankName):
     sequencesJsonPath = os.path.join(decomp, "sound", "sequences.json")
@@ -103,9 +109,7 @@ def rename_soundbank(decomp, oldSoundbank, newSoundbank):
 
 def rename_instrument(decomp, soundbank, oldInstrument, newInstrument):
     validate_name(newInstrument, "instrument name")
-    soundbankPath = os.path.join(decomp, "sound", "sound_banks", "%s.json" % soundbank)
-    with open(soundbankPath, "r") as jsonFile:
-        jsonData = json.load(jsonFile)
+    jsonData = open_soundbank(decomp, soundbank)
 
     if not oldInstrument in jsonData["instrument_list"]:
         raise AudioManagerException(f"Instrument {oldInstrument} does not exist in soundbank {soundbank}")
@@ -119,5 +123,12 @@ def rename_instrument(decomp, soundbank, oldInstrument, newInstrument):
         if oldInstrument in jsonData["instruments"]:
             jsonData["instruments"][newInstrument] = jsonData["instruments"].pop(oldInstrument)
 
-    with open(soundbankPath, "w") as jsonFile:
-        json.dump(jsonData, jsonFile, indent=4)
+    save_soundbank(decomp, soundbank, jsonData)
+
+def delete_instrument(decomp, soundbank, instID):
+    jsonData = open_soundbank(decomp, soundbank)
+    instrument = jsonData["instrument_list"][instID]
+    if instrument is not None:
+        del jsonData["instruments"][instrument]
+    del jsonData["instrument_list"][instID]
+    save_soundbank(decomp, soundbank, jsonData)
