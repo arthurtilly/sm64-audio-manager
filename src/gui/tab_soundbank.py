@@ -60,36 +60,27 @@ class SoundbankTab(MainTab):
 
     def create_instrument_frame(self, layout):
         instrumentFrame = QFrame()
-        instrumentLayout = QVBoxLayout()
+        instrumentLayout = QHBoxLayout()
         instrumentFrame.setLayout(instrumentLayout)
         layout.addWidget(instrumentFrame)
         instrumentFrame.setFrameShape(QFrame.Shape.StyledPanel)
 
-        # Instrument name
-        instrumentNameLayout = new_widget(instrumentLayout, QHBoxLayout, alignment=QtCore.Qt.AlignmentFlag.AlignHCenter)
-        instrumentNameLabel = QLabel(text="New instrument name:")
-        instrumentNameLayout.addWidget(instrumentNameLabel, alignment=QtCore.Qt.AlignmentFlag.AlignRight)
-        self.instrumentName = QLineEdit()
-        self.instrumentName.setText("")
-        self.instrumentName.setFixedWidth(170)
-        instrumentNameLayout.addWidget(self.instrumentName, alignment=QtCore.Qt.AlignmentFlag.AlignLeft)
-
-        buttonLayout = new_widget(instrumentLayout, QHBoxLayout)
-
-        buttonLayout.addStretch(1)
+        instrumentLayout.addStretch(1)
         insertBelowButton = QPushButton(text="Insert below")
-        buttonLayout.addWidget(insertBelowButton)
+        insertBelowButton.clicked.connect(self.insert_below_pressed)
+        instrumentLayout.addWidget(insertBelowButton)
 
-        buttonLayout.addStretch(1)
+        instrumentLayout.addStretch(1)
         insertAboveButton = QPushButton(text="Insert above")
-        buttonLayout.addWidget(insertAboveButton)
+        insertAboveButton.clicked.connect(self.insert_above_pressed)
+        instrumentLayout.addWidget(insertAboveButton)
 
-        buttonLayout.addStretch(1)
+        instrumentLayout.addStretch(1)
         self.deleteButton = QPushButton(text="Delete")
         self.deleteButton.clicked.connect(self.delete_pressed)
-        buttonLayout.addWidget(self.deleteButton)
+        instrumentLayout.addWidget(self.deleteButton)
 
-        buttonLayout.addStretch(1)
+        instrumentLayout.addStretch(1)
 
         return instrumentFrame
     
@@ -233,3 +224,35 @@ class SoundbankTab(MainTab):
             self.inst_selection_changed()
         except AudioManagerException as e:
             self.set_info_message("Error: " + str(e), COLOR_RED)
+
+    def insert_new_instrument(self, index):
+        # Add new child widget in correct position
+        try:
+            add_instrument(self.decomp, self.selectedSoundbank.text(0), index)
+            bankIndex = soundbank_get_sfx_index(self.decomp, self.selectedSoundbank.text(0))
+            if bankIndex != -1:
+                self.chunkDictionary.insert_instrument(bankIndex, index)
+                self.chunkDictionary.reconstruct_sequence_player()
+            self.soundbankList.blockSignals(True)
+            child = QTreeWidgetItem()
+            child.setText(0, "<Empty>")
+            self.selectedSoundbank.insertChild(index, child)
+            self.soundbankList.blockSignals(False)
+            self.soundbankList.setCurrentItem(child)
+            pass
+        except AudioManagerException as e:
+            self.set_info_message("Error: " + str(e), COLOR_RED)
+
+    def insert_above_pressed(self):
+        if self.selectedInstrument is None:
+            index = 0
+        else:
+            index = self.selectedSoundbank.indexOfChild(self.selectedInstrument)
+        self.insert_new_instrument(index)
+
+    def insert_below_pressed(self):
+        if self.selectedInstrument is None:
+            index = self.selectedSoundbank.childCount()
+        else:
+            index = self.selectedSoundbank.indexOfChild(self.selectedInstrument) + 1
+        self.insert_new_instrument(index)

@@ -353,21 +353,7 @@ class ImportSfxTab(MainTab):
 
     # Determine default name for define
     def get_new_define_name(self):
-        # Strip numbers from right side of name
-        name = self.selectedChunk.name[1:].upper()
-        if not name.startswith("SOUND_"):
-            name = "SOUND_" + name
-        if not self.define_name_in_use(name):
-            return name
-        while name[-1].isdigit():
-            name = name[:-1]
-        # Determine new name
-        i = 2
-        while True:
-            newName = name + str(i)
-            if not self.define_name_in_use(newName):
-                return newName
-            i += 1
+        return get_new_name(self.selectedChunk.name[1:].upper(), self.define_name_in_use, "SOUND_")
     
     def add_define(self):
         item = self.sfxList.currentItem()
@@ -419,21 +405,14 @@ class ImportSfxTab(MainTab):
     def loop_checkbutton_pressed(self):
         self.toggle_loop_options(self.doLoop.isChecked())
 
+    def sound_name_in_use(self, name):
+        return self.chunkDictionary.dictionary.get("." + name) is not None
 
     # Determine default name for sound based on selected chunk
     def update_sound_name(self):
         # Strip numbers from right side of name
         name = self.selectedChunk.name[1:]
-        while name[-1].isdigit():
-            name = name[:-1]
-        # Determine new name
-        i = 2
-        while True:
-            newName = name + str(i)
-            if self.chunkDictionary.dictionary.get("." + newName) is None:
-                self.soundName.setText(newName)
-                break
-            i += 1
+        self.soundName.setText(get_new_name(name, self.sound_name_in_use))
 
     def init_define_rows(self, sfxListEntry=None):
         self.clear_define_rows()

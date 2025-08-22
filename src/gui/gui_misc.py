@@ -45,6 +45,25 @@ def new_widget(layout, layoutType, alignment=None, spacing=None):
         newLayout.setSpacing(spacing)
     return newLayout
 
+def get_new_name(name, inUseFunc, prefix=None):
+    # Strip numbers from right side of name
+    if prefix is not None:
+        if not name.startswith(prefix):
+            name = prefix + name
+    if not inUseFunc(name):
+        return name
+    num = ""
+    while name[-1].isdigit():
+        num = name[-1] + num
+        name = name[:-1]
+    # Determine new name
+    i = int(num) if num else 2
+    while True:
+        newName = name + str(i)
+        if not inUseFunc(newName):
+            return newName
+        i += 1
+
 
 # Base class for a tab in the main window notebook
 class MainTab(QWidget):

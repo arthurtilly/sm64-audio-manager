@@ -411,8 +411,9 @@ class ChunkDictionary:
         # If chunk has no references left, delete it
         if len(oldChunk.parents) == 0:
             self.delete_chunk(oldChunk)
-    
-    def delete_instrument(self, bank, inst):
+
+    # Shift all instruments with an ID greater than inst
+    def update_instruments(self, bank, inst, shift):
         for name, chunk in self.dictionary.items():
             if chunk.type != CHUNK_TYPE_CHANNEL and chunk.type != CHUNK_TYPE_LAYER:
                 continue
@@ -420,15 +421,21 @@ class ChunkDictionary:
                 continue
             for line in chunk.lines:
                 if type(line) == InstrCommand:
-                    if line.bank == bank and line.instrument > inst:
-                        line.instrument -= 1
+                    if line.bank == bank and line.instrument >= inst:
+                        line.instrument += shift
             newInsts = []
             for instrument in chunk.instruments:
-                if instrument[0] == bank and instrument[1] > inst:
-                    newInsts.append((instrument[0], instrument[1] - 1))
+                if instrument[0] == bank and instrument[1] >= inst:
+                    newInsts.append((instrument[0], instrument[1] + shift))
                 else:
                     newInsts.append(instrument)
             chunk.instruments = newInsts
+    
+    def delete_instrument(self, bank, inst):
+        self.update_instruments(bank, inst, -1)
+
+    def insert_instrument(self, bank, newInst):
+        self.update_instruments(bank, newInst, 1)
 
 def line_is_command(line, cmd):
     return type(line) == ReferenceCommand and referenceCommands[line.commandID][0] == cmd

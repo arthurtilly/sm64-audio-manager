@@ -132,3 +132,9 @@ def delete_instrument(decomp, soundbank, instID):
         del jsonData["instruments"][instrument]
     del jsonData["instrument_list"][instID]
     save_soundbank(decomp, soundbank, jsonData)
+
+# insert new empty instrument
+def add_instrument(decomp, soundbank, index):
+    jsonData = open_soundbank(decomp, soundbank)
+    jsonData["instrument_list"].insert(index, None)
+    save_soundbank(decomp, soundbank, jsonData)
