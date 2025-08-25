@@ -143,7 +143,7 @@ class SequencePlayerChunk:
                 return not hasReturn
         # Check if line is an instrument command
         if lineSplit[0] == "layer_setinstr" or lineSplit[0] == "chan_setinstr":
-            self.lines.append(InstrCommand(lineSplit[0] == "layer_setinstr", int(lineSplit[1])))
+            self.lines.append(InstrCommand(lineSplit[0] == "layer_setinstr", int(lineSplit[1], 0)))
             return False
         # If not, just add the line as a string
         self.lines.append(line)
@@ -165,7 +165,7 @@ class SequencePlayerChunk:
                 lineSplit = line.split(" ")
                 # Check for regular channel setting bank/instruments
                 if lineSplit[0] == "chan_setbank":
-                    bank = int(lineSplit[1])
+                    bank = int(lineSplit[1], 0)
 
         # Build instrument list for channels only to know which are referenced
         if (self.type != CHUNK_TYPE_CHANNEL):
@@ -216,7 +216,7 @@ class ChunkDictionary:
             while True:
                 line = f.readline()
                 if not line: break
-                line = line.rstrip()
+                line = line.strip()
                 if len(line) == 0: continue
 
                 # Check if line is a label
@@ -375,7 +375,7 @@ class ChunkDictionary:
         for i, line in enumerate(chunk.lines):
             if type(line) == str and line.startswith("chan_subtract"):
                 # Get the subtracted value
-                subtractedValue = int(line.split(" ")[1].strip()[2:], 16)
+                subtractedValue = int(line.split(" ")[1].strip(), 0)
                 chunk.lines[i] = f"chan_subtract 0x{subtractedValue - 1:02X}"
 
 

@@ -9,6 +9,7 @@ else:
     with open("persistent.json", "r") as jsonFile:
         persistent = json.load(jsonFile)
 
+
 if "decomp" in persistent:
     decomp = persistent["decomp"]
 

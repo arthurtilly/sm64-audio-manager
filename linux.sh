@@ -34,6 +34,7 @@ fi
 python3 -m pip install PyQt6
 python3 -m pip install av
 python3 -m pip install soundfile
+python3 -m pip install playsound3
 
 # Run GUI
 python3 src/gui/gui_main.py

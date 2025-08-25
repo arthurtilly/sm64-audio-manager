@@ -44,9 +44,8 @@ def create_soundbank(decomp, name, samples):
 
 def open_soundbank(decomp, soundbank):
     soundbankPath = os.path.join(decomp, "sound", "sound_banks", "%s.json" % soundbank)
-    with open(soundbankPath, "r") as jsonFile:
-        return json.load(jsonFile)
-    
+    return load_json(soundbankPath)
+
 def save_soundbank(decomp, soundbank, jsonData):
     soundbankPath = os.path.join(decomp, "sound", "sound_banks", "%s.json" % soundbank)
     with open(soundbankPath, "w") as jsonFile:
@@ -71,9 +70,7 @@ def get_instruments(decomp, soundbankName):
     return open_soundbank(decomp, soundbankName).get("instrument_list", [])
 
 def soundbank_get_sfx_index(decomp, soundbankName):
-    sequencesJsonPath = os.path.join(decomp, "sound", "sequences.json")
-    with open(sequencesJsonPath, "r") as jsonFile:
-        sequencesData = json.load(jsonFile)
+    sequencesData = load_json(os.path.join(decomp, "sound", "sequences.json"))
     if not soundbankName in sequencesData["00_sound_player"]:
         return -1
     return sequencesData["00_sound_player"].index(soundbankName)
@@ -89,8 +86,7 @@ def rename_soundbank(decomp, oldSoundbank, newSoundbank):
     )
     # Load sequences.json
     sequencesJson = os.path.join(decomp, "sound", "sequences.json")
-    with open(sequencesJson, "r") as jsonFile:
-        jsonData = json.load(jsonFile)
+    jsonData = load_json(sequencesJson)
     for name, element in jsonData.items():
         bankList = None
         if isinstance(element, list):

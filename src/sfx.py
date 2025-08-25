@@ -55,8 +55,8 @@ def sounds_h_line_is_define(line):
 def get_params_from_sounds_h_define(line):
     params = line.split("(")[1].split(")")[0] # Get only stuff inside the brackets
     params = [param.strip() for param in params.split(",")] # Split by comma, strip whitespace
-    params[1] = int(params[1][2:], 16)
-    params[2] = int(params[2][2:], 16)
+    params[1] = int(params[1], 0)
+    params[2] = int(params[2], 0)
     return params
 
 

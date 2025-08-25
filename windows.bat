@@ -22,6 +22,7 @@ REM Install Python dependencies
 python -m pip install PyQt6
 python -m pip install av
 python -m pip install soundfile
+python -m pip install playsound3
 
 REM Run GUI
 python src/gui/gui_main.py

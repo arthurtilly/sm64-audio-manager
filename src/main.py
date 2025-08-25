@@ -13,8 +13,7 @@ def import_audio(decomp, inputAiff, replace=None,
 
     validate_decomp(decomp)
 
-    with open(os.path.join(decomp, "sound", "sequences.json"), "r") as seqJson:
-        seqJsonData = json.load(seqJson)
+    seqJsonData = load_json(os.path.join(decomp, "sound", "sequences.json"))
     
     # Generate names if required
     if seqName is None:

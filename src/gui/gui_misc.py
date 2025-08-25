@@ -64,6 +64,10 @@ def get_new_name(name, inUseFunc, prefix=None):
             return newName
         i += 1
 
+def grid_add_spacer(grid, row, column):
+    spacerItem = QSpacerItem(0, 0, QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Minimum)
+    grid.addItem(spacerItem, row, column)
+
 
 # Base class for a tab in the main window notebook
 class MainTab(QWidget):
@@ -83,3 +87,8 @@ class MainTab(QWidget):
     def toggle_options(self, options, enabled):
         for widget in options:
             widget.setEnabled(enabled)
+
+    def fix_checkbox_palette(self, box):
+        palette = box.palette()
+        palette.setColor(QPalette.ColorRole.Base, self.palette().color(QPalette.ColorRole.Button))
+        box.setPalette(palette)

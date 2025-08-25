@@ -2,6 +2,9 @@ from PyQt6.QtWidgets import *
 from PyQt6.QtGui import *
 from PyQt6 import QtCore
 
+import threading
+import playsound3
+
 from gui_misc import *
 append_parent_dir()
 from misc import *
@@ -55,8 +58,8 @@ class SoundbankTab(MainTab):
         optionsLayout.addWidget(self.importInfoLabel)
         optionsLayout.addStretch(1)
 
-        self.toggleRequiresBank = (instrumentFrame,addEntriesLabel,sampleLabel, sampleFrame)
-        self.toggleRequiresBankAndInstrument = (instrumentNameLabel,referenceFrame,)
+        self.toggleRequiresBank = (instrumentFrame,addEntriesLabel)
+        self.toggleRequiresBankAndInstrument = (instrumentNameLabel,referenceFrame,sampleLabel, sampleFrame)
         self.toggle_all_options()
 
     def create_instrument_frame(self, layout):
@@ -85,6 +88,37 @@ class SoundbankTab(MainTab):
 
         return instrumentFrame
     
+    def create_sample_row(self, layout, index, rangeText=None):
+        sampleLabel = QLabel(text="Sample:")
+        sampleDropdown = QComboBox()
+        sampleDropdown.setMinimumWidth(150)
+        playButton = QPushButton(text="Play...")
+        playButton.clicked.connect(lambda: self.play_sample(index))
+
+        rangeBox = None
+        rangeField = None
+        if rangeText:
+            rangeBox = QCheckBox(text=rangeText)
+            self.fix_checkbox_palette(rangeBox)
+            rangeBox.stateChanged.connect(lambda: self.sample_set_row_enabled(index, rangeBox.isChecked()))
+            rangeField = QLineEdit()
+            rangeField.setMaximumWidth(40)
+            rangeField.setValidator(QIntValidator())
+            layout.addWidget(rangeBox, index, 1)
+            layout.addWidget(rangeField, index, 2)
+
+        self.sampleRows.append((sampleDropdown, rangeBox, rangeField))
+
+        layout.addWidget(sampleLabel, index, 4)
+        layout.addWidget(sampleDropdown, index, 5)
+        layout.addWidget(playButton, index, 7)
+
+    def sample_set_row_enabled(self, row, enabled):
+        self.sampleGridLayout.itemAtPosition(row, 2).widget().setEnabled(enabled)
+        self.sampleGridLayout.itemAtPosition(row, 4).widget().setEnabled(enabled)
+        self.sampleGridLayout.itemAtPosition(row, 5).widget().setEnabled(enabled)
+        self.sampleGridLayout.itemAtPosition(row, 7).widget().setEnabled(enabled)
+
     def create_sample_frame(self, layout):
         sampleFrame = QFrame()
         sampleLayout = QVBoxLayout(sampleFrame)
@@ -93,29 +127,36 @@ class SoundbankTab(MainTab):
         sampleFrame.setLayout(sampleLayout)
 
         # Sample dropdown
-        sampleRow = new_widget(sampleLayout, QHBoxLayout)
-        sampleRow.layout().addStretch(1)
-        sampleLabel = QLabel(text="Sample:")
-        sampleRow.layout().addWidget(sampleLabel)
-        self.sampleDropdown = QComboBox()
-        self.sampleDropdown.setMinimumWidth(150)
-        sampleRow.layout().addWidget(self.sampleDropdown)
-        sampleRow.layout().addStretch(1)
+        self.sampleRows = []
+        self.sampleGridLayout = new_widget(sampleLayout, QGridLayout)
+        grid_add_spacer(self.sampleGridLayout, 0, 0)
+        grid_add_spacer(self.sampleGridLayout, 0, 3)
+        grid_add_spacer(self.sampleGridLayout, 0, 6)
+        grid_add_spacer(self.sampleGridLayout, 0, 8)
+        self.create_sample_row(self.sampleGridLayout, 0)
+        self.create_sample_row(self.sampleGridLayout, 1, "Low:")
+        self.create_sample_row(self.sampleGridLayout, 2, "High:")
+        self.sampleDropdown = self.sampleRows[0][0]
+        self.sample_set_row_enabled(1, False)
+        self.sample_set_row_enabled(2, False)
 
         # Release rate
-        releaseRateRow = new_widget(sampleLayout, QHBoxLayout)
-        releaseRateRow.layout().addStretch(1)
+        releaseRateLayout = new_widget(sampleLayout, QHBoxLayout)
+        releaseRateLayout.addStretch(1)
         releaseRateLabel = QLabel(text="Release Rate:")
-        releaseRateRow.layout().addWidget(releaseRateLabel)
-        sampleLayout.addLayout(releaseRateRow)
+        releaseRateLayout.addWidget(releaseRateLabel)
+        sampleLayout.addLayout(releaseRateLayout)
         self.releaseRate = QLineEdit()
         self.releaseRate.setMaximumWidth(40)
         self.releaseRate.setValidator(QIntValidator())
-        releaseRateRow.layout().addWidget(self.releaseRate)
-        releaseRateRow.layout().addStretch(1)
+        releaseRateLayout.addWidget(self.releaseRate)
+        releaseRateLayout.addStretch(1)
+        saveButton = QPushButton(text="Save...")
+        releaseRateLayout.addWidget(saveButton)
+        releaseRateLayout.addStretch(1)
 
-        sampleRow.layout().setContentsMargins(0, 0, 0, 0)
-        releaseRateRow.layout().setContentsMargins(0, 0, 0, 0)
+        self.sampleGridLayout.setContentsMargins(0, 0, 0, 0)
+        releaseRateLayout.setContentsMargins(0, 0, 0, 0)
 
         return sampleFrame
     
@@ -182,7 +223,11 @@ class SoundbankTab(MainTab):
         return False
     
     def update_sample_data(self):
-        self.sampleDropdown.clear()
+        for i in range(3):
+            self.sampleRows[i][0].clear()
+            if (i != 0):
+                self.sampleRows[i][1].setChecked(False)
+                self.sampleRows[i][2].clear()
         self.releaseRate.clear()
         if self.selectedInstrument is None:
             return
@@ -190,15 +235,28 @@ class SoundbankTab(MainTab):
             return
         # Init sample dropdown
         sampleBank = get_sample_bank(self.decomp, self.selectedSoundbank.text(0))
-        self.sampleDropdown.addItems(get_all_samples_in_bank(self.decomp, sampleBank))
 
         instData = get_instrument_data(self.decomp, self.selectedSoundbank.text(0), self.selectedInstrument.text(0))
         selectedSample = instData["sound"]
         releaseRate = instData["release_rate"]
         if type(selectedSample) == dict:
             selectedSample = selectedSample["sample"]
-        self.sampleDropdown.setCurrentText(selectedSample + ".aiff")
+        for i in range(3):
+            self.sampleRows[i][0].addItems(get_all_samples_in_bank(self.decomp, sampleBank))
+            self.sampleRows[i][0].setCurrentText(selectedSample + ".aiff")
         self.releaseRate.setText(str(releaseRate))
+
+        sound_lo = instData.get("sound_lo", None)
+        sound_hi = instData.get("sound_hi", None)
+        if sound_lo is not None:
+            self.sampleRows[1][0].setCurrentText(sound_lo + ".aiff")
+            self.sampleRows[1][1].setChecked(True)
+            self.sampleRows[1][2].setText(str(instData["normal_range_lo"]))
+        if sound_hi is not None:
+            self.sampleRows[2][0].setCurrentText(sound_hi + ".aiff")
+            self.sampleRows[2][1].setChecked(True)
+            self.sampleRows[2][2].setText(str(instData["normal_range_hi"]))
+
 
     def inst_selection_changed(self):
         selectedItem = self.soundbankList.currentItem()
@@ -311,3 +369,9 @@ class SoundbankTab(MainTab):
         else:
             index = self.selectedSoundbank.indexOfChild(self.selectedInstrument) + 1
         self.insert_new_instrument(index)
+
+    def play_sample(self, index):
+        sampleBank = get_sample_bank(self.decomp, self.selectedSoundbank.text(0))
+        sampleName = self.sampleRows[index][0].currentText()
+        samplePath = os.path.join(self.decomp, "sound", "samples", sampleBank, sampleName)
+        threading.Thread(target=playsound3.playsound, args=(samplePath,), daemon=True).start()

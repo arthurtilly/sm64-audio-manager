@@ -77,26 +77,20 @@ class StreamedMusicTab(MainTab):
         # First line: Widget for sample selection
         selectSoundFileLayout = new_widget(sampleLayout, QGridLayout)
         selectSoundFileLayout.setVerticalSpacing(0)
-        
-        spacer = QSpacerItem(0, 0, QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Minimum)
-        selectSoundFileLayout.addItem(spacer, 0, 0)
-    
+        grid_add_spacer(selectSoundFileLayout, 0, 0)
+
         # Label
         self.selectedSoundFile = None
         self.selectedFileLabel = QLabel(text="Selected audio file: None")
         selectSoundFileLayout.addWidget(self.selectedFileLabel, 0, 1)
-
-        spacer = QSpacerItem(0, 0, QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Minimum)
-        selectSoundFileLayout.addItem(spacer, 0, 2)
+        grid_add_spacer(selectSoundFileLayout, 0, 2)
     
         # Browse button
         self.selectSoundFileButton = QPushButton(text="Browse...")
         self.selectSoundFileButton.clicked.connect(self.select_sound_file_button_pressed)
         selectSoundFileLayout.addWidget(self.selectSoundFileButton, 0, 3)
         self.selectSoundFileButton.setSizePolicy(QSizePolicy.Policy.Fixed, QSizePolicy.Policy.Fixed)
-
-        spacer = QSpacerItem(0, 0, QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Minimum)
-        selectSoundFileLayout.addItem(spacer, 0, 4)
+        grid_add_spacer(selectSoundFileLayout, 0, 4)
 
         self.estimatedSizeLabel = QLabel(text="")
         selectSoundFileLayout.addWidget(self.estimatedSizeLabel, 1, 1)
@@ -112,11 +106,7 @@ class StreamedMusicTab(MainTab):
         self.doLoop.stateChanged.connect(self.loop_checkbutton_pressed)
         self.loopInfoLayout.addWidget(self.doLoop)
         self.doLoop.setSizePolicy(QSizePolicy.Policy.Fixed, QSizePolicy.Policy.Fixed)
-
-        palette = self.doLoop.palette()
-        palette.setColor(QPalette.ColorRole.Base, self.palette().color(QPalette.ColorRole.Button))
-        self.doLoop.setPalette(palette)
-
+        self.fix_checkbox_palette(self.doLoop)
         self.loopInfoLayout.addStretch(1)
 
         # Loop start

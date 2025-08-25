@@ -1,6 +1,7 @@
 import os
 import soundfile as sf
 import json
+import re
 
 class AudioManagerException(Exception):
     pass
@@ -33,6 +34,12 @@ def validate_name(name, whichName):
     if len(name) == 0:
         raise AudioManagerException("%s cannot be empty" % whichName.capitalize())
 
+def load_json(path): # strips // comments
+    with open(path, 'r') as f:
+        content = f.read()
+    content = re.sub(r'//.*$', '', content, flags=re.MULTILINE)
+    content = re.sub("/\\*.*?\\*/", "", content, flags=re.DOTALL)
+    return json.loads(content)
 
 def check_names_for_duplicates(decomp, seqId, seqName=None, soundbankName=None, sampleName=None):
     # Check if sequence name is a duplicate
@@ -124,8 +131,7 @@ def scan_all_sequences(decomp):
     seqIdsPath = os.path.join(decomp, "include", "seq_ids.h")
     seqTable = load_table(seqIdsPath, "enum SeqId")
 
-    with open(os.path.join(decomp, "sound", "sequences.json"), "r") as seqJson:
-        seqJsonData = json.load(seqJson)
+    seqJsonData = load_json(os.path.join(decomp, "sound", "sequences.json"))
 
     numSeqs = find_new_seq_id(seqJsonData) - 1
     allSeqs = [None] * numSeqs

@@ -166,10 +166,7 @@ class ImportSfxTab(MainTab):
         self.doLoop.stateChanged.connect(self.loop_checkbutton_pressed)
         loopInfoLayout.addWidget(self.doLoop)
         self.doLoop.setSizePolicy(QSizePolicy.Policy.Fixed, QSizePolicy.Policy.Fixed)
-
-        palette = self.doLoop.palette()
-        palette.setColor(QPalette.ColorRole.Base, self.palette().color(QPalette.ColorRole.Button))
-        self.doLoop.setPalette(palette)
+        self.fix_checkbox_palette(self.doLoop)
 
         loopInfoLayout.addStretch(1)
 
