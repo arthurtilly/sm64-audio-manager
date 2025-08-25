@@ -146,3 +146,35 @@ def get_all_samples_in_bank(decomp, samplebank):
 def get_instrument_data(decomp, soundbank, inst):
     jsonData = open_soundbank(decomp, soundbank)
     return jsonData["instruments"][inst]
+
+def change_instrument_data(decomp, soundbank, inst, newData):
+    jsonData = open_soundbank(decomp, soundbank)
+    if inst not in jsonData["instruments"]:
+        raise AudioManagerException(f"Instrument {inst} does not exist in soundbank {soundbank}")
+    jsonData["instruments"][inst] = newData
+    save_soundbank(decomp, soundbank, jsonData)
+
+def save_instrument(decomp, soundbank, inst,
+                    sample, releaseRate,
+                    sampleLo, rangeLo,
+                    sampleHi, rangeHi):
+    # Get envelope
+    jsonData = open_soundbank(decomp, soundbank)
+    if inst in jsonData["instruments"]:
+        envelope = jsonData["instruments"][inst]["envelope"]
+    else:
+        envelope = "envelope0"
+    
+    newData = {
+        "release_rate": releaseRate,
+        "envelope": envelope,
+        "sound": sample,
+    }
+    if sampleLo is not None:
+        newData["sound_lo"] = sampleLo
+        newData["normal_range_lo"] = rangeLo
+    if sampleHi is not None:
+        newData["sound_hi"] = sampleHi
+        newData["normal_range_hi"] = rangeHi
+
+    change_instrument_data(decomp, soundbank, inst, newData)

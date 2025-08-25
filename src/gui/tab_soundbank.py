@@ -153,6 +153,7 @@ class SoundbankTab(MainTab):
         releaseRateLayout.addStretch(1)
         saveButton = QPushButton(text="Save...")
         releaseRateLayout.addWidget(saveButton)
+        saveButton.clicked.connect(self.save_sample)
         releaseRateLayout.addStretch(1)
 
         self.sampleGridLayout.setContentsMargins(0, 0, 0, 0)
@@ -375,3 +376,25 @@ class SoundbankTab(MainTab):
         sampleName = self.sampleRows[index][0].currentText()
         samplePath = os.path.join(self.decomp, "sound", "samples", sampleBank, sampleName)
         threading.Thread(target=playsound3.playsound, args=(samplePath,), daemon=True).start()
+
+    def save_sample(self):
+        sampleLo, rangeLo, sampleHi, rangeHi = None, None, None, None
+        if self.sampleRows[1][1].isChecked():
+            sampleLo = os.path.splitext(self.sampleRows[1][0].currentText())[0]
+            rangeLo = self.sampleRows[1][2].text()
+            if rangeLo == "":
+                self.set_info_message("Error: Please enter valid range value.", COLOR_RED)
+                return
+            rangeLo = int(rangeLo)
+        if self.sampleRows[2][1].isChecked():
+            sampleHi = os.path.splitext(self.sampleRows[2][0].currentText())[0]
+            rangeHi = self.sampleRows[2][2].text()
+            if rangeHi == "":
+                self.set_info_message("Error: Please enter valid range value.", COLOR_RED)
+                return
+            rangeHi = int(rangeHi)
+
+        save_instrument(self.decomp, self.selectedSoundbank.text(0), self.selectedInstrument.text(0),
+                        os.path.splitext(self.sampleRows[0][0].currentText())[0], int(self.releaseRate.text()),
+                        sampleLo, rangeLo, sampleHi, rangeHi)
+        self.set_info_message("Saved instrument sample data!", COLOR_GREEN)
