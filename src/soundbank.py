@@ -1,14 +1,28 @@
 import os
 import datetime
 import json
+import math
 
 from misc import *
+import soundfile as sf
+
+def tuning_float_to_semitones(tuning, samplePath):
+    sampleRate = sf.info(samplePath).samplerate
+    tuning *= (32000 / sampleRate)
+    return int(round(math.log2(tuning) * 12))
+
+def tuning_semitones_to_float(tuning, samplePath):
+    sampleRate = sf.info(samplePath).samplerate
+    tuning = 2 ** (tuning / 12)
+    tuning *= (sampleRate / 32000)
+    return tuning
 
 # Sample data for json with optional tuning
 class Sample:
     def __init__(self, data, bank):
         # Resolve ifdefs
         self.bank = bank
+        if data is None: return
         if type(data) is dict and "ifdef" in data:
             if "VERSION_US" in data["ifdef"]:
                 data = data["then"]
@@ -17,18 +31,20 @@ class Sample:
         
         if type(data) is dict:
             self.name = data["sample"]
-            self.tuning = data["tuning"]
+            self.tuning = tuning_float_to_semitones(data["tuning"], os.path.join(self.bank, self.name+".aiff"))
+            print(f"{data['tuning']} -> {self.tuning}")
         else:
             self.name = data
             self.tuning = 0
 
     def to_data(self):
         if self.tuning != 0:
-            return {"sample":self.name, "tuning":self.tuning}
+            return {"sample":self.name, "tuning":tuning_semitones_to_float(self.tuning, os.path.join(self.bank, self.name+".aiff"))}
         return self.name
     
 class Instrument:
     def __init__(self, data, bank):
+        if data is None: return
         self.release_rate = data["release_rate"]
         self.sound = Sample(data["sound"], bank)
         self.envelope = data["envelope"]
@@ -202,14 +218,45 @@ def get_sample_bank(decomp, soundbank):
     jsonData = open_soundbank(decomp, soundbank)
     return jsonData["sample_bank"]
 
+def get_sample_bank_path(decomp, soundbank):
+    return os.path.join(decomp, "sound", "samples", get_sample_bank(decomp, soundbank))
+
 def get_all_samples_in_bank(decomp, samplebank):
     sampleFolder = os.path.join(decomp, "sound", "samples", samplebank)
     return sort_with_hex_prefix([f for f in os.listdir(sampleFolder) if f.endswith(".aiff")])
 
 def get_instrument_data(decomp, soundbank, inst):
     jsonData = open_soundbank(decomp, soundbank)
-    return Instrument(jsonData["instruments"][inst], jsonData["sample_bank"])
+    return Instrument(jsonData["instruments"][inst], get_sample_bank_path(decomp, soundbank))
+
+def save_instrument_data(decomp, soundbank, inst, data):
+    jsonData = open_soundbank(decomp, soundbank)
+    jsonData["instruments"][inst] = data.to_data()
+    save_soundbank(decomp, soundbank, jsonData)
 
 def get_envelope(decomp, soundbank, envelope):
     jsonData = open_soundbank(decomp, soundbank)
     return jsonData["envelopes"][envelope]
+
+def add_envelope(decomp, soundbank, envelope):
+    jsonData = open_soundbank(decomp, soundbank)
+    for name, env in jsonData["envelopes"].items():
+        # Test if envelopes are equal
+        if env == envelope:
+            return name
+    # Add envelope
+    def envelopeNameUsed(name):
+        return name in jsonData["envelopes"]
+    name = get_new_name("envelope0", envelopeNameUsed)
+    jsonData["envelopes"][name] = envelope
+    save_soundbank(decomp, soundbank, jsonData)
+    return name
+
+def cleanup_unused_envelopes(decomp, soundbank):
+    jsonData = open_soundbank(decomp, soundbank)
+    usedEnvelopes = set()
+    for name, inst in jsonData["instruments"].items():
+        if name == "percussion": continue
+        usedEnvelopes.add(inst["envelope"])
+    jsonData["envelopes"] = {name: env for name, env in jsonData["envelopes"].items() if name in usedEnvelopes}
+    save_soundbank(decomp, soundbank, jsonData)

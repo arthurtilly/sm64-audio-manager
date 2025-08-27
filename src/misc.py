@@ -34,12 +34,43 @@ def validate_name(name, whichName):
     if len(name) == 0:
         raise AudioManagerException("%s cannot be empty" % whichName.capitalize())
 
+def validate_int(value, field):
+    try:
+        return int(value)
+    except ValueError:
+        raise AudioManagerException(f"{field} must be an integer")
+
+def validate_float(value, field):
+    try:
+        return float(value)
+    except ValueError:
+        raise AudioManagerException(f"{field} must be a number")
+
 def load_json(path): # strips // comments
     with open(path, 'r') as f:
         content = f.read()
     content = re.sub(r'//.*$', '', content, flags=re.MULTILINE)
     content = re.sub("/\\*.*?\\*/", "", content, flags=re.DOTALL)
     return json.loads(content)
+
+def get_new_name(name, inUseFunc, prefix=None):
+    # Strip numbers from right side of name
+    if prefix is not None:
+        if not name.startswith(prefix):
+            name = prefix + name
+    if not inUseFunc(name):
+        return name
+    num = ""
+    while name[-1].isdigit():
+        num = name[-1] + num
+        name = name[:-1]
+    # Determine new name
+    i = int(num) if num else 2
+    while True:
+        newName = name + str(i)
+        if not inUseFunc(newName):
+            return newName
+        i += 1
 
 def check_names_for_duplicates(decomp, seqId, seqName=None, soundbankName=None, sampleName=None):
     # Check if sequence name is a duplicate

@@ -11,8 +11,6 @@ from misc import *
 from soundbank import *
 from seq00 import *
 
-defaultEnvelope = ((2, 32700), (1, 32700), (32700, 29430), (32700, 29430), (32700, 29430))
-
 class SoundbankTab(MainTab):
     def create_page(self):
         self.chunkDictionary = ChunkDictionary(self.decomp)
@@ -119,6 +117,7 @@ class SoundbankTab(MainTab):
         sampleStartIndex = 4
         if tuning:
             tuningBox = QSpinBox()
+            tuningBox.setRange(-32,32)
             layout.addWidget(QLabel(text="Tuning:"), index, 4)
             layout.addWidget(tuningBox, index, 5)
             sampleStartIndex = 7
@@ -130,9 +129,7 @@ class SoundbankTab(MainTab):
         layout.addWidget(playButton, index, sampleStartIndex+3)
 
     def init_envelope(self):
-        self.currEnvelope = []
-        for point in defaultEnvelope:
-            self.currEnvelope.append(list(point))
+        self.currEnvelope = [[2, 32700], [32700, 32700], [32700, 32700], [32700, 32700], [32700, 32700]]
         
     def update_envelope(self, row, column):
         self.currEnvelope[row][column] = int(self.envelopeFields[row][column].text())
@@ -175,6 +172,7 @@ class SoundbankTab(MainTab):
 
     def create_sample_frame(self, advanced):
         # Delete all widgets
+        self.advanced = advanced
         layout = self.sampleFrame.layout()
         while layout.count():
             widget = layout.itemAt(0).widget()
@@ -332,7 +330,7 @@ class SoundbankTab(MainTab):
         self.sampleRows[0][0].setCurrentText(instData.sound.name + ".aiff")
 
         if advanced:
-            self.releaseRate.setText(str(208))
+            self.releaseRate.setText(str(instData.release_rate))
             self.sampleRows[0][1].setValue(int(instData.sound.tuning))
 
             self.sampleRows[1][0].addItems(get_all_samples_in_bank(self.decomp, sampleBank))
@@ -352,10 +350,46 @@ class SoundbankTab(MainTab):
             numRows = len(envelope) - 1
             for i in range(numRows):
                 self.currEnvelope[i] = envelope[i]
+            for i in range(numRows, 5):
+                self.currEnvelope[i] = [32700, envelope[numRows-1][1]]
             self.envelopeRowCount.setValue(numRows)
             self.create_envelope_rows(self.envelopeGridLayout, numRows)
 
 
+    def save_sample(self):
+        try:
+            sampleBankPath = get_sample_bank_path(self.decomp, self.selectedSoundbank.text(0))
+            instData = Instrument(None, None)
+            instData.sound = Sample(None, sampleBankPath)
+            instData.sound.name = os.path.splitext(self.sampleRows[0][0].currentText())[0]
+            instData.sound.tuning = 0
+            instData.sound_lo = instData.sound_hi = instData.normal_range_hi = instData.normal_range_lo = None
+            if self.advanced:
+                instData.release_rate = validate_int(self.releaseRate.text(), "release rate")
+                instData.sound.tuning = validate_int(self.sampleRows[0][1].value(), "tuning")
+                if self.sampleRows[1][2].isChecked():
+                    instData.sound_lo = Sample(None, sampleBankPath)
+                    instData.sound_lo.name = os.path.splitext(self.sampleRows[1][0].currentText())[0]
+                    instData.sound_lo.tuning = validate_int(self.sampleRows[1][1].value(), "tuning")
+                    instData.normal_range_lo = validate_int(self.sampleRows[1][3].text(), "low range")
+                if self.sampleRows[2][2].isChecked():
+                    instData.sound_hi = Sample(None, sampleBankPath)
+                    instData.sound_hi.name = os.path.splitext(self.sampleRows[2][0].currentText())[0]
+                    instData.sound_hi.tuning = validate_int(self.sampleRows[2][1].value(), "tuning")
+                    instData.normal_range_hi = validate_int(self.sampleRows[2][3].text(), "high range")
+                envelope = []
+                for i in range(self.envelopeRowCount.value()):
+                    envelope.append([validate_int(self.envelopeFields[i][0].text(), "envelope value"),
+                                     validate_int(self.envelopeFields[i][1].text(), "envelope value")])
+                envelope.append("hang")
+                instData.envelope = add_envelope(self.decomp, self.selectedSoundbank.text(0), envelope)
+                cleanup_unused_envelopes(self.decomp, self.selectedSoundbank.text(0))
+            else:
+                instData.release_rate = 208
+                instData.envelope = get_instrument_data(self.decomp, self.selectedSoundbank.text(0), self.selectedInstrument.text(0)).envelope
+            save_instrument_data(self.decomp, self.selectedSoundbank.text(0), self.selectedInstrument.text(0), instData)
+        except AudioManagerException as e:
+            self.set_info_message("Error: " + str(e), COLOR_RED)
 
     def inst_selection_changed(self):
         selectedItem = self.soundbankList.currentItem()
@@ -477,26 +511,3 @@ class SoundbankTab(MainTab):
         sampleName = self.sampleRows[index][0].currentText()
         samplePath = os.path.join(self.decomp, "sound", "samples", sampleBank, sampleName)
         threading.Thread(target=playsound3.playsound, args=(samplePath,), daemon=True).start()
-
-    def save_sample(self):
-        pass
-        # sampleLo, rangeLo, sampleHi, rangeHi = None, None, None, None
-        # if self.sampleRows[1][1].isChecked():
-        #     sampleLo = os.path.splitext(self.sampleRows[1][0].currentText())[0]
-        #     rangeLo = self.sampleRows[1][2].text()
-        #     if rangeLo == "":
-        #         self.set_info_message("Error: Please enter valid range value.", COLOR_RED)
-        #         return
-        #     rangeLo = int(rangeLo)
-        # if self.sampleRows[2][1].isChecked():
-        #     sampleHi = os.path.splitext(self.sampleRows[2][0].currentText())[0]
-        #     rangeHi = self.sampleRows[2][2].text()
-        #     if rangeHi == "":
-        #         self.set_info_message("Error: Please enter valid range value.", COLOR_RED)
-        #         return
-        #     rangeHi = int(rangeHi)
-
-        # save_instrument(self.decomp, self.selectedSoundbank.text(0), self.selectedInstrument.text(0),
-        #                 os.path.splitext(self.sampleRows[0][0].currentText())[0], int(self.releaseRate.text()),
-        #                 sampleLo, rangeLo, sampleHi, rangeHi)
-        # self.set_info_message("Saved instrument sample data!", COLOR_GREEN)
