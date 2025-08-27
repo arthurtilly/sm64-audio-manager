@@ -4,6 +4,69 @@ import json
 
 from misc import *
 
+# Sample data for json with optional tuning
+class Sample:
+    def __init__(self, data, bank):
+        # Resolve ifdefs
+        self.bank = bank
+        if type(data) is dict and "ifdef" in data:
+            if "VERSION_US" in data["ifdef"]:
+                data = data["then"]
+            else:
+                data = data["else"]
+        
+        if type(data) is dict:
+            self.name = data["sample"]
+            self.tuning = data["tuning"]
+        else:
+            self.name = data
+            self.tuning = 0
+
+    def to_data(self):
+        if self.tuning != 0:
+            return {"sample":self.name, "tuning":self.tuning}
+        return self.name
+    
+class Instrument:
+    def __init__(self, data, bank):
+        self.release_rate = data["release_rate"]
+        self.sound = Sample(data["sound"], bank)
+        self.envelope = data["envelope"]
+        if "sound_lo" in data:
+            self.sound_lo = Sample(data["sound_lo"], bank)
+            self.normal_range_lo = data["normal_range_lo"]
+        else:
+            self.sound_lo = None
+            self.normal_range_lo = None
+        if "sound_hi" in data:
+            self.sound_hi = Sample(data["sound_hi"], bank)
+            self.normal_range_hi = data["normal_range_hi"]
+        else:
+            self.sound_hi = None
+            self.normal_range_hi = None
+
+    def to_data(self):
+        # Add in a specific order to match order of vanilla
+        data = {}
+        data["release_rate"] = self.release_rate
+        if self.normal_range_lo is not None:
+            data["normal_range_lo"] = self.normal_range_lo
+        if self.normal_range_hi is not None:
+            data["normal_range_hi"] = self.normal_range_hi
+        data["envelope"] = self.envelope
+        if self.sound_lo is not None:
+            data["sound_lo"] = self.sound_lo.to_data()
+        data["sound"] = self.sound.to_data()
+        if self.sound_hi is not None:
+            data["sound_hi"] = self.sound_hi.to_data()
+        return data
+    
+    def uses_advanced_options(self):
+        if self.sound_lo is not None or self.sound_hi is not None:
+            return True
+        if self.sound.tuning != 0:
+            return True
+        return False
 
 # Create a soundbank for decomp using the given sample names
 def create_soundbank(decomp, name, samples):
@@ -145,36 +208,8 @@ def get_all_samples_in_bank(decomp, samplebank):
 
 def get_instrument_data(decomp, soundbank, inst):
     jsonData = open_soundbank(decomp, soundbank)
-    return jsonData["instruments"][inst]
+    return Instrument(jsonData["instruments"][inst], jsonData["sample_bank"])
 
-def change_instrument_data(decomp, soundbank, inst, newData):
+def get_envelope(decomp, soundbank, envelope):
     jsonData = open_soundbank(decomp, soundbank)
-    if inst not in jsonData["instruments"]:
-        raise AudioManagerException(f"Instrument {inst} does not exist in soundbank {soundbank}")
-    jsonData["instruments"][inst] = newData
-    save_soundbank(decomp, soundbank, jsonData)
-
-def save_instrument(decomp, soundbank, inst,
-                    sample, releaseRate,
-                    sampleLo, rangeLo,
-                    sampleHi, rangeHi):
-    # Get envelope
-    jsonData = open_soundbank(decomp, soundbank)
-    if inst in jsonData["instruments"]:
-        envelope = jsonData["instruments"][inst]["envelope"]
-    else:
-        envelope = "envelope0"
-    
-    newData = {
-        "release_rate": releaseRate,
-        "envelope": envelope,
-        "sound": sample,
-    }
-    if sampleLo is not None:
-        newData["sound_lo"] = sampleLo
-        newData["normal_range_lo"] = rangeLo
-    if sampleHi is not None:
-        newData["sound_hi"] = sampleHi
-        newData["normal_range_hi"] = rangeHi
-
-    change_instrument_data(decomp, soundbank, inst, newData)
+    return jsonData["envelopes"][envelope]

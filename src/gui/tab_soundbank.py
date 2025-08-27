@@ -11,9 +11,15 @@ from misc import *
 from soundbank import *
 from seq00 import *
 
+defaultEnvelope = ((2, 32700), (1, 32700), (32700, 29430), (32700, 29430), (32700, 29430))
+
 class SoundbankTab(MainTab):
     def create_page(self):
         self.chunkDictionary = ChunkDictionary(self.decomp)
+        self.sampleFrame = None
+        self.selectedSoundbank = None
+        self.selectedInstrument = None
+        self.init_envelope()
 
         self.layout = QHBoxLayout()
         self.layout.setContentsMargins(0, 0, 0, 0)
@@ -33,9 +39,6 @@ class SoundbankTab(MainTab):
         self.soundbankList.itemChanged.connect(self.tree_item_changed)
         self.soundbankList.itemSelectionChanged.connect(self.inst_selection_changed)
 
-        self.selectedSoundbank = None
-        self.selectedInstrument = None
-
         optionsLayout = new_widget(self.layout, QVBoxLayout, spacing=5)
 
         addEntriesLabel = QLabel(text="Add/remove instruments:")
@@ -44,8 +47,13 @@ class SoundbankTab(MainTab):
 
         sampleLabel = QLabel(text="Sample data:")
         optionsLayout.addWidget(sampleLabel)
-        sampleFrame = self.create_sample_frame(optionsLayout)
-        optionsLayout.addWidget(sampleFrame)
+
+        self.sampleFrame = QFrame()
+        sampleLayout = QVBoxLayout(self.sampleFrame)
+        optionsLayout.addWidget(self.sampleFrame)
+        self.sampleFrame.setFrameShape(QFrame.Shape.StyledPanel)
+        self.sampleFrame.setLayout(sampleLayout)
+        self.create_sample_frame(False)
 
         optionsLayout.addStretch(1)
         instrumentNameLabel = QLabel(text="Referenced in sound effects:")
@@ -59,7 +67,7 @@ class SoundbankTab(MainTab):
         optionsLayout.addStretch(1)
 
         self.toggleRequiresBank = (instrumentFrame,addEntriesLabel)
-        self.toggleRequiresBankAndInstrument = (instrumentNameLabel,referenceFrame,sampleLabel, sampleFrame)
+        self.toggleRequiresBankAndInstrument = (instrumentNameLabel,referenceFrame,sampleLabel)
         self.toggle_all_options()
 
     def create_instrument_frame(self, layout):
@@ -88,7 +96,7 @@ class SoundbankTab(MainTab):
 
         return instrumentFrame
     
-    def create_sample_row(self, layout, index, rangeText=None):
+    def create_sample_row(self, layout, index, tuning=False, rangeText=None):
         sampleLabel = QLabel(text="Sample:")
         sampleDropdown = QComboBox()
         sampleDropdown.setMinimumWidth(150)
@@ -97,6 +105,7 @@ class SoundbankTab(MainTab):
 
         rangeBox = None
         rangeField = None
+        tuningBox = None
         if rangeText:
             rangeBox = QCheckBox(text=rangeText)
             self.fix_checkbox_palette(rangeBox)
@@ -107,60 +116,140 @@ class SoundbankTab(MainTab):
             layout.addWidget(rangeBox, index, 1)
             layout.addWidget(rangeField, index, 2)
 
-        self.sampleRows.append((sampleDropdown, rangeBox, rangeField))
+        sampleStartIndex = 4
+        if tuning:
+            tuningBox = QSpinBox()
+            layout.addWidget(QLabel(text="Tuning:"), index, 4)
+            layout.addWidget(tuningBox, index, 5)
+            sampleStartIndex = 7
 
-        layout.addWidget(sampleLabel, index, 4)
-        layout.addWidget(sampleDropdown, index, 5)
-        layout.addWidget(playButton, index, 7)
+        self.sampleRows.append((sampleDropdown, tuningBox, rangeBox, rangeField))
+
+        layout.addWidget(sampleLabel, index, sampleStartIndex)
+        layout.addWidget(sampleDropdown, index, sampleStartIndex+1)
+        layout.addWidget(playButton, index, sampleStartIndex+3)
+
+    def init_envelope(self):
+        self.currEnvelope = []
+        for point in defaultEnvelope:
+            self.currEnvelope.append(list(point))
+        
+    def update_envelope(self, row, column):
+        self.currEnvelope[row][column] = int(self.envelopeFields[row][column].text())
+
+    def create_envelope_rows(self, layout, rows):
+        while layout.count():
+            widget = layout.takeAt(0).widget()
+            if widget is not None:
+                layout.removeWidget(widget)
+                widget.deleteLater()
+        grid_add_spacer(layout, 0, 0)
+        grid_add_spacer(layout, 0, 5)
+        self.envelopeFields = []
+        for i in range(rows):
+            self.envelopeFields.append([])
+            for j in range(2):
+                numberField = QLineEdit()
+                numberField.setMaximumWidth(40)
+                numberField.setValidator(QIntValidator())
+                numberField.setText(str(self.currEnvelope[i][j]))
+                numberField.textChanged.connect(lambda: self.update_envelope(i, j))
+                layout.addWidget(QLabel(text="Time:" if j == 0 else "Volume:"), i, j*2 + 1)
+                layout.addWidget(numberField, i, j*2+2)
+                self.envelopeFields[i].append(numberField)
 
     def sample_set_row_enabled(self, row, enabled):
-        self.sampleGridLayout.itemAtPosition(row, 2).widget().setEnabled(enabled)
-        self.sampleGridLayout.itemAtPosition(row, 4).widget().setEnabled(enabled)
-        self.sampleGridLayout.itemAtPosition(row, 5).widget().setEnabled(enabled)
-        self.sampleGridLayout.itemAtPosition(row, 7).widget().setEnabled(enabled)
+        for col in range(2,self.sampleGridLayout.columnCount()):
+            item = self.sampleGridLayout.itemAtPosition(row, col)
+            if item is not None:
+                item.widget().setEnabled(enabled)
 
-    def create_sample_frame(self, layout):
-        sampleFrame = QFrame()
-        sampleLayout = QVBoxLayout(sampleFrame)
-        layout.addWidget(sampleFrame)
-        sampleFrame.setFrameShape(QFrame.Shape.StyledPanel)
-        sampleFrame.setLayout(sampleLayout)
+    def create_dividing_line(self):
+        dividingLine = QFrame()
+        dividingLine.setFrameShape(QFrame.Shape.HLine)
+        # Match color of StyledPanel
+        palette = dividingLine.palette()
+        palette.setColor(QPalette.ColorRole.WindowText, palette.color(QPalette.ColorRole.Dark))
+        dividingLine.setPalette(palette)
+        return dividingLine
+
+    def create_sample_frame(self, advanced):
+        # Delete all widgets
+        layout = self.sampleFrame.layout()
+        while layout.count():
+            widget = layout.itemAt(0).widget()
+            layout.removeWidget(widget)
+            widget.deleteLater()
 
         # Sample dropdown
         self.sampleRows = []
-        self.sampleGridLayout = new_widget(sampleLayout, QGridLayout)
+        self.sampleGridLayout = new_widget(layout, QGridLayout)
+
+        if advanced:
+            releaseRateFrame = QFrame()
+            releaseRateLayout = QHBoxLayout(releaseRateFrame)
+            self.releaseRate = QLineEdit()
+            self.releaseRate.setMaximumWidth(40)
+            self.releaseRate.setValidator(QIntValidator())
+            releaseRateLayout.addWidget(QLabel(text="Release Rate:"))
+            releaseRateLayout.addWidget(self.releaseRate)
+            self.sampleGridLayout.addWidget(releaseRateFrame, 0, 1, 1, 2)
+
         grid_add_spacer(self.sampleGridLayout, 0, 0)
         grid_add_spacer(self.sampleGridLayout, 0, 3)
         grid_add_spacer(self.sampleGridLayout, 0, 6)
-        grid_add_spacer(self.sampleGridLayout, 0, 8)
-        self.create_sample_row(self.sampleGridLayout, 0)
-        self.create_sample_row(self.sampleGridLayout, 1, "Low:")
-        self.create_sample_row(self.sampleGridLayout, 2, "High:")
+        if advanced:
+            grid_add_spacer(self.sampleGridLayout, 0, 9)
+            grid_add_spacer(self.sampleGridLayout, 0, 11)
+        else:
+            grid_add_spacer(self.sampleGridLayout, 0, 8)
+        self.create_sample_row(self.sampleGridLayout, 0, tuning=advanced)
+        if advanced:
+            self.create_sample_row(self.sampleGridLayout, 1, tuning=advanced, rangeText = "Low:")
+            self.create_sample_row(self.sampleGridLayout, 2, tuning=advanced, rangeText = "High:")
+            self.sample_set_row_enabled(1, False)
+            self.sample_set_row_enabled(2, False)
         self.sampleDropdown = self.sampleRows[0][0]
-        self.sample_set_row_enabled(1, False)
-        self.sample_set_row_enabled(2, False)
+
+        if advanced:
+            layout.addWidget(self.create_dividing_line())
+            envelopeLayout = new_widget(layout, QHBoxLayout)
+            envelopeLayout.addStretch(1)
+            envelopeLayout.addWidget(QLabel(text="Set envelope:"))
+            envelopeLayout.addStretch(1)
+            envelopeLayout.addWidget(QLabel(text="Rows:"))
+            self.envelopeRowCount = QSpinBox()
+            self.envelopeRowCount.setRange(0, 5)
+            self.envelopeRowCount.setValue(3)
+            envelopeLayout.addWidget(self.envelopeRowCount)
+            envelopeLayout.addStretch(1)
+
+            self.envelopeGridLayout = new_widget(layout, QGridLayout)
+            self.create_envelope_rows(self.envelopeGridLayout, 3)
+            layout.addWidget(self.create_dividing_line())
+
+            self.envelopeRowCount.valueChanged.connect(lambda: self.create_envelope_rows(self.envelopeGridLayout, self.envelopeRowCount.value()))
+            self.envelopeGridLayout.setContentsMargins(11, 0, 11, 11)
+            envelopeLayout.setContentsMargins(11, 11, 11, 0)
 
         # Release rate
-        releaseRateLayout = new_widget(sampleLayout, QHBoxLayout)
+        releaseRateLayout = new_widget(layout, QHBoxLayout)
+        # releaseRateLayout.addStretch(1)
+
         releaseRateLayout.addStretch(1)
-        releaseRateLabel = QLabel(text="Release Rate:")
-        releaseRateLayout.addWidget(releaseRateLabel)
-        sampleLayout.addLayout(releaseRateLayout)
-        self.releaseRate = QLineEdit()
-        self.releaseRate.setMaximumWidth(40)
-        self.releaseRate.setValidator(QIntValidator())
-        releaseRateLayout.addWidget(self.releaseRate)
+
+        advancedOptions = QCheckBox(text = "Show advanced options...")
+        self.fix_checkbox_palette(advancedOptions)
+        advancedOptions.setChecked(advanced)
+        advancedOptions.stateChanged.connect(lambda: self.update_sample_data(advancedOptions.isChecked()))
+        releaseRateLayout.addWidget(advancedOptions)
         releaseRateLayout.addStretch(1)
+
         saveButton = QPushButton(text="Save...")
         releaseRateLayout.addWidget(saveButton)
         saveButton.clicked.connect(self.save_sample)
         releaseRateLayout.addStretch(1)
 
-        self.sampleGridLayout.setContentsMargins(0, 0, 0, 0)
-        releaseRateLayout.setContentsMargins(0, 0, 0, 0)
-
-        return sampleFrame
-    
     def create_references_frame(self, layout):
         referenceFrame = QFrame()
         referenceLayout = QVBoxLayout(referenceFrame)
@@ -176,6 +265,7 @@ class SoundbankTab(MainTab):
     def toggle_all_options(self):
         self.toggle_options(self.toggleRequiresBank, self.selectedSoundbank is not None)
         self.toggle_options(self.toggleRequiresBankAndInstrument, self.selectedInstrument is not None)
+        self.toggle_options((self.sampleFrame, ), self.selectedInstrument is not None) 
 
     # Deletes all widgets in self.references
     def clear_references(self):
@@ -223,13 +313,9 @@ class SoundbankTab(MainTab):
             self.add_reference(ref)
         return False
     
-    def update_sample_data(self):
-        for i in range(3):
-            self.sampleRows[i][0].clear()
-            if (i != 0):
-                self.sampleRows[i][1].setChecked(False)
-                self.sampleRows[i][2].clear()
-        self.releaseRate.clear()
+    # advanced = None: determine from instrument data
+    # otherwise True or False
+    def update_sample_data(self, advanced=None):
         if self.selectedInstrument is None:
             return
         if self.selectedInstrument.text(0) == "<Empty>":
@@ -238,25 +324,37 @@ class SoundbankTab(MainTab):
         sampleBank = get_sample_bank(self.decomp, self.selectedSoundbank.text(0))
 
         instData = get_instrument_data(self.decomp, self.selectedSoundbank.text(0), self.selectedInstrument.text(0))
-        selectedSample = instData["sound"]
-        releaseRate = instData["release_rate"]
-        if type(selectedSample) == dict:
-            selectedSample = selectedSample["sample"]
-        for i in range(3):
-            self.sampleRows[i][0].addItems(get_all_samples_in_bank(self.decomp, sampleBank))
-            self.sampleRows[i][0].setCurrentText(selectedSample + ".aiff")
-        self.releaseRate.setText(str(releaseRate))
+        if advanced is None:
+            advanced = instData.uses_advanced_options()
+        self.create_sample_frame(advanced)
 
-        sound_lo = instData.get("sound_lo", None)
-        sound_hi = instData.get("sound_hi", None)
-        if sound_lo is not None:
-            self.sampleRows[1][0].setCurrentText(sound_lo + ".aiff")
-            self.sampleRows[1][1].setChecked(True)
-            self.sampleRows[1][2].setText(str(instData["normal_range_lo"]))
-        if sound_hi is not None:
-            self.sampleRows[2][0].setCurrentText(sound_hi + ".aiff")
-            self.sampleRows[2][1].setChecked(True)
-            self.sampleRows[2][2].setText(str(instData["normal_range_hi"]))
+        self.sampleRows[0][0].addItems(get_all_samples_in_bank(self.decomp, sampleBank))
+        self.sampleRows[0][0].setCurrentText(instData.sound.name + ".aiff")
+
+        if advanced:
+            self.releaseRate.setText(str(208))
+            self.sampleRows[0][1].setValue(int(instData.sound.tuning))
+
+            self.sampleRows[1][0].addItems(get_all_samples_in_bank(self.decomp, sampleBank))
+            self.sampleRows[2][0].addItems(get_all_samples_in_bank(self.decomp, sampleBank))
+            if instData.sound_lo is not None:
+                self.sampleRows[1][0].setCurrentText(instData.sound_lo.name + ".aiff")
+                self.sampleRows[1][1].setValue(int(instData.sound_lo.tuning))
+                self.sampleRows[1][2].setChecked(True)
+                self.sampleRows[1][3].setText(str(instData.normal_range_lo))
+            if instData.sound_hi is not None:
+                self.sampleRows[2][0].setCurrentText(instData.sound_hi.name + ".aiff")
+                self.sampleRows[2][1].setValue(int(instData.sound_hi.tuning))
+                self.sampleRows[2][2].setChecked(True)
+                self.sampleRows[2][3].setText(str(instData.normal_range_hi))
+
+            envelope = get_envelope(self.decomp, self.selectedSoundbank.text(0),instData.envelope)
+            numRows = len(envelope) - 1
+            for i in range(numRows):
+                self.currEnvelope[i] = envelope[i]
+            self.envelopeRowCount.setValue(numRows)
+            self.create_envelope_rows(self.envelopeGridLayout, numRows)
+
 
 
     def inst_selection_changed(self):
@@ -268,7 +366,10 @@ class SoundbankTab(MainTab):
             else:
                 self.selectedSoundbank = selectedItem
                 self.selectedInstrument = None
+
+        # Update sample frame
         self.update_sample_data()
+
         deleteEnabled = self.update_references()
         self.deleteButton.setEnabled(deleteEnabled)
         self.toggle_all_options()
@@ -378,23 +479,24 @@ class SoundbankTab(MainTab):
         threading.Thread(target=playsound3.playsound, args=(samplePath,), daemon=True).start()
 
     def save_sample(self):
-        sampleLo, rangeLo, sampleHi, rangeHi = None, None, None, None
-        if self.sampleRows[1][1].isChecked():
-            sampleLo = os.path.splitext(self.sampleRows[1][0].currentText())[0]
-            rangeLo = self.sampleRows[1][2].text()
-            if rangeLo == "":
-                self.set_info_message("Error: Please enter valid range value.", COLOR_RED)
-                return
-            rangeLo = int(rangeLo)
-        if self.sampleRows[2][1].isChecked():
-            sampleHi = os.path.splitext(self.sampleRows[2][0].currentText())[0]
-            rangeHi = self.sampleRows[2][2].text()
-            if rangeHi == "":
-                self.set_info_message("Error: Please enter valid range value.", COLOR_RED)
-                return
-            rangeHi = int(rangeHi)
+        pass
+        # sampleLo, rangeLo, sampleHi, rangeHi = None, None, None, None
+        # if self.sampleRows[1][1].isChecked():
+        #     sampleLo = os.path.splitext(self.sampleRows[1][0].currentText())[0]
+        #     rangeLo = self.sampleRows[1][2].text()
+        #     if rangeLo == "":
+        #         self.set_info_message("Error: Please enter valid range value.", COLOR_RED)
+        #         return
+        #     rangeLo = int(rangeLo)
+        # if self.sampleRows[2][1].isChecked():
+        #     sampleHi = os.path.splitext(self.sampleRows[2][0].currentText())[0]
+        #     rangeHi = self.sampleRows[2][2].text()
+        #     if rangeHi == "":
+        #         self.set_info_message("Error: Please enter valid range value.", COLOR_RED)
+        #         return
+        #     rangeHi = int(rangeHi)
 
-        save_instrument(self.decomp, self.selectedSoundbank.text(0), self.selectedInstrument.text(0),
-                        os.path.splitext(self.sampleRows[0][0].currentText())[0], int(self.releaseRate.text()),
-                        sampleLo, rangeLo, sampleHi, rangeHi)
-        self.set_info_message("Saved instrument sample data!", COLOR_GREEN)
+        # save_instrument(self.decomp, self.selectedSoundbank.text(0), self.selectedInstrument.text(0),
+        #                 os.path.splitext(self.sampleRows[0][0].currentText())[0], int(self.releaseRate.text()),
+        #                 sampleLo, rangeLo, sampleHi, rangeHi)
+        # self.set_info_message("Saved instrument sample data!", COLOR_GREEN)
