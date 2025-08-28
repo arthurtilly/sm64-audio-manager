@@ -55,8 +55,8 @@ class SoundbankTab(MainTab):
         self.create_sample_frame(False)
 
         optionsLayout.addStretch(1)
-        instrumentNameLabel = QLabel(text="Referenced in sound effects:")
-        optionsLayout.addWidget(instrumentNameLabel)
+        referenceLabel = QLabel(text="Referenced in sound effects:")
+        optionsLayout.addWidget(referenceLabel)
         referenceFrame = self.create_references_frame(optionsLayout)
         optionsLayout.addStretch(1)
 
@@ -66,7 +66,8 @@ class SoundbankTab(MainTab):
         optionsLayout.addStretch(1)
 
         self.toggleRequiresBank = (instrumentFrame,addEntriesLabel)
-        self.toggleRequiresBankAndInstrument = (instrumentNameLabel,referenceFrame,sampleLabel)
+        self.toggleRequiresBankAndInstrument = (referenceLabel,referenceFrame,sampleLabel,self.sampleFrame)
+        self.hideOnMusicBank = (referenceLabel, referenceFrame)
         self.toggle_all_options()
 
     def create_instrument_frame(self, layout):
@@ -130,10 +131,11 @@ class SoundbankTab(MainTab):
         layout.addWidget(playButton, index, sampleStartIndex+3)
 
     def init_envelope(self):
-        self.currEnvelope = [[2, 32700], [32700, 32700], [32700, 32700], [32700, 32700], [32700, 32700]]
+        self.currEnvelope = [[2, 1.0], [32700, 1.0], [32700, 1.0], [32700, 1.0], [32700, 1.0]]
         
-    def update_envelope(self, row, column):
-        self.currEnvelope[row][column] = int(self.envelopeFields[row][column].text())
+    def update_envelope(self, row):
+        self.currEnvelope[row][0] = int(self.envelopeFields[row][0].text())
+        self.currEnvelope[row][1] = float(self.envelopeFields[row][1].text())
 
     def create_envelope_rows(self, layout, rows):
         while layout.count():
@@ -148,10 +150,13 @@ class SoundbankTab(MainTab):
             self.envelopeFields.append([])
             for j in range(2):
                 numberField = QLineEdit()
-                numberField.setMaximumWidth(40)
-                numberField.setValidator(QIntValidator())
+                numberField.setMaximumWidth(50)
+                if j == 0:
+                    numberField.setValidator(QIntValidator())
+                else:
+                    numberField.setValidator(QDoubleValidator())
                 numberField.setText(str(self.currEnvelope[i][j]))
-                numberField.textChanged.connect(lambda: self.update_envelope(i, j))
+                numberField.textChanged.connect(lambda: self.update_envelope(i))
                 layout.addWidget(QLabel(text="Time:" if j == 0 else "Volume:"), i, j*2 + 1)
                 layout.addWidget(numberField, i, j*2+2)
                 self.envelopeFields[i].append(numberField)
@@ -264,7 +269,11 @@ class SoundbankTab(MainTab):
     def toggle_all_options(self):
         self.toggle_options(self.toggleRequiresBank, self.selectedSoundbank is not None)
         self.toggle_options(self.toggleRequiresBankAndInstrument, self.selectedInstrument is not None)
-        self.toggle_options((self.sampleFrame, ), self.selectedInstrument is not None) 
+
+        if self.selectedSoundbank is not None:
+            sfxBankSelected = soundbank_get_sfx_index(self.decomp, self.selectedSoundbank.text(0)) != -1
+            for widget in self.hideOnMusicBank:
+                widget.setVisible(sfxBankSelected)
 
     # Deletes all widgets in self.references
     def clear_references(self):
@@ -283,9 +292,9 @@ class SoundbankTab(MainTab):
                 if instrument[0] == bankIndex and instrument[1] == instIndex:
                     refs.append(name[1:])
         return refs
-    
-    def add_reference(self, text):
-        referenceLabel = QLabel(text=text, alignment=QtCore.Qt.AlignmentFlag.AlignCenter)
+
+    def add_reference(self, text, align=QtCore.Qt.AlignmentFlag.AlignCenter):
+        referenceLabel = QLabel(text=text, alignment=align)
         self.references.layout().addWidget(referenceLabel)
 
     # Return value is if deletion is possible
@@ -296,7 +305,6 @@ class SoundbankTab(MainTab):
             return False
         bankIndex = soundbank_get_sfx_index(self.decomp, self.selectedSoundbank.text(0))
         if bankIndex == -1:
-            self.add_reference("Selected soundbank is not a SFX bank.")
             return True
 
         instIndex = self.selectedSoundbank.indexOfChild(self.selectedInstrument)
@@ -309,7 +317,7 @@ class SoundbankTab(MainTab):
             refs = refs[-10:]
             refs.append(f"...and {numExtraRefs} more")
         for ref in refs:
-            self.add_reference(ref)
+            self.add_reference(ref, align=QtCore.Qt.AlignmentFlag.AlignLeft)
         return False
     
     # advanced = None: determine from instrument data
@@ -350,9 +358,9 @@ class SoundbankTab(MainTab):
             envelope = get_envelope(self.decomp, self.selectedSoundbank.text(0),instData.envelope)
             numRows = len(envelope) - 1
             for i in range(numRows):
-                self.currEnvelope[i] = envelope[i]
+                self.currEnvelope[i] = [envelope[i][0], round(envelope[i][1]/32700, 4)]
             for i in range(numRows, 5):
-                self.currEnvelope[i] = [32700, envelope[numRows-1][1]]
+                self.currEnvelope[i] = [32700, round(envelope[numRows-1][1]/32700, 4)]
             self.envelopeRowCount.setValue(numRows)
             self.create_envelope_rows(self.envelopeGridLayout, numRows)
 
@@ -380,8 +388,8 @@ class SoundbankTab(MainTab):
                     instData.normal_range_hi = validate_int(self.sampleRows[2][3].text(), "high range")
                 envelope = []
                 for i in range(self.envelopeRowCount.value()):
-                    envelope.append([validate_int(self.envelopeFields[i][0].text(), "envelope value"),
-                                     validate_int(self.envelopeFields[i][1].text(), "envelope value")])
+                    envelope.append([validate_int(self.envelopeFields[i][0].text(), "envelope time"),
+                                     round(validate_float(self.envelopeFields[i][1].text(), "envelope volume") * 32700)])
                 envelope.append("hang")
                 instData.envelope = add_envelope(self.decomp, self.selectedSoundbank.text(0), envelope)
                 cleanup_unused_envelopes(self.decomp, self.selectedSoundbank.text(0))
