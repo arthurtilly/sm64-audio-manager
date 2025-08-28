@@ -4,6 +4,7 @@ from PyQt6 import QtCore
 
 import threading
 import playsound3
+import tempfile
 
 from gui_misc import *
 append_parent_dir()
@@ -510,4 +511,18 @@ class SoundbankTab(MainTab):
         sampleBank = get_sample_bank(self.decomp, self.selectedSoundbank.text(0))
         sampleName = self.sampleRows[index][0].currentText()
         samplePath = os.path.join(self.decomp, "sound", "samples", sampleBank, sampleName)
-        threading.Thread(target=playsound3.playsound, args=(samplePath,), daemon=True).start()
+
+        if not self.advanced:
+            tuning = 0
+        else:
+            tuning = self.sampleRows[index][1].value()
+        if tuning == 0:
+            threading.Thread(target=playsound3.playsound, args=(samplePath,), daemon=True).start()
+            return
+
+        pitchFactor = 2 ** (tuning / 12)
+        temp = tempfile.mktemp(suffix=".wav")
+        sampleRate = sf.info(samplePath).samplerate
+        # Play at new sample rate
+        sf.write(temp, sf.read(samplePath)[0], int(sampleRate * pitchFactor))
+        threading.Thread(target=playsound3.playsound, args=(temp,), daemon=True).start()
