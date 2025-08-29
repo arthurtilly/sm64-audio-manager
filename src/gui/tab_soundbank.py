@@ -325,25 +325,40 @@ class SoundbankTab(MainTab):
     def update_sample_data(self, advanced=None):
         if self.selectedInstrument is None:
             return
-        if self.selectedInstrument.text(0) == "<Empty>":
-            return
-        # Init sample dropdown
         sampleBank = get_sample_bank(self.decomp, self.selectedSoundbank.text(0))
-
         instData = get_instrument_data(self.decomp, self.selectedSoundbank.text(0), self.selectedInstrument.text(0))
+        samples = get_all_samples_in_bank(self.decomp, sampleBank)
+
+        if self.selectedInstrument.text(0) == "<Empty>":
+            instData.sound = Sample(None, get_sample_bank_path(self.decomp, self.selectedSoundbank.text(0)))
+            instData.sound.name = samples[0]
+            instData.sound.tuning = 0
+
         if advanced is None:
             advanced = instData.uses_advanced_options()
         self.create_sample_frame(advanced)
 
-        self.sampleRows[0][0].addItems(get_all_samples_in_bank(self.decomp, sampleBank))
+        self.sampleRows[0][0].addItems(samples)
         self.sampleRows[0][0].setCurrentText(instData.sound.name + ".aiff")
+
+        # Init envelope values
+        if instData.envelope is None:
+            self.init_envelope()
+            numRows = 1
+        else:
+            envelope = get_envelope(self.decomp, self.selectedSoundbank.text(0),instData.envelope)
+            numRows = len(envelope) - 1
+            for i in range(numRows):
+                self.currEnvelope[i] = [envelope[i][0], round(envelope[i][1]/32700, 4)]
+            for i in range(numRows, 5):
+                self.currEnvelope[i] = [32700, round(envelope[numRows-1][1]/32700, 4)]
 
         if advanced:
             self.releaseRate.setText(str(instData.release_rate))
             self.sampleRows[0][1].setValue(int(instData.sound.tuning))
 
-            self.sampleRows[1][0].addItems(get_all_samples_in_bank(self.decomp, sampleBank))
-            self.sampleRows[2][0].addItems(get_all_samples_in_bank(self.decomp, sampleBank))
+            self.sampleRows[1][0].addItems(samples)
+            self.sampleRows[2][0].addItems(samples)
             if instData.sound_lo is not None:
                 self.sampleRows[1][0].setCurrentText(instData.sound_lo.name + ".aiff")
                 self.sampleRows[1][1].setValue(int(instData.sound_lo.tuning))
@@ -355,12 +370,6 @@ class SoundbankTab(MainTab):
                 self.sampleRows[2][2].setChecked(True)
                 self.sampleRows[2][3].setText(str(instData.normal_range_hi))
 
-            envelope = get_envelope(self.decomp, self.selectedSoundbank.text(0),instData.envelope)
-            numRows = len(envelope) - 1
-            for i in range(numRows):
-                self.currEnvelope[i] = [envelope[i][0], round(envelope[i][1]/32700, 4)]
-            for i in range(numRows, 5):
-                self.currEnvelope[i] = [32700, round(envelope[numRows-1][1]/32700, 4)]
             self.envelopeRowCount.setValue(numRows)
             self.create_envelope_rows(self.envelopeGridLayout, numRows)
 
@@ -372,7 +381,6 @@ class SoundbankTab(MainTab):
             instData.sound = Sample(None, sampleBankPath)
             instData.sound.name = os.path.splitext(self.sampleRows[0][0].currentText())[0]
             instData.sound.tuning = 0
-            instData.sound_lo = instData.sound_hi = instData.normal_range_hi = instData.normal_range_lo = None
             if self.advanced:
                 instData.release_rate = validate_int(self.releaseRate.text(), "release rate")
                 instData.sound.tuning = validate_int(self.sampleRows[0][1].value(), "tuning")
@@ -386,17 +394,32 @@ class SoundbankTab(MainTab):
                     instData.sound_hi.name = os.path.splitext(self.sampleRows[2][0].currentText())[0]
                     instData.sound_hi.tuning = validate_int(self.sampleRows[2][1].value(), "tuning")
                     instData.normal_range_hi = validate_int(self.sampleRows[2][3].text(), "high range")
-                envelope = []
-                for i in range(self.envelopeRowCount.value()):
-                    envelope.append([validate_int(self.envelopeFields[i][0].text(), "envelope time"),
-                                     round(validate_float(self.envelopeFields[i][1].text(), "envelope volume") * 32700)])
-                envelope.append("hang")
-                instData.envelope = add_envelope(self.decomp, self.selectedSoundbank.text(0), envelope)
-                cleanup_unused_envelopes(self.decomp, self.selectedSoundbank.text(0))
+
             else:
                 instData.release_rate = 208
-                instData.envelope = get_instrument_data(self.decomp, self.selectedSoundbank.text(0), self.selectedInstrument.text(0)).envelope
+            
+            # Envelopes
+            oldEnvelope = get_instrument_data(self.decomp, self.selectedSoundbank.text(0), self.selectedInstrument.text(0)).envelope
+            if self.advanced or oldEnvelope is None:
+                envelope = []
+                numRows = self.envelopeRowCount.value() if self.advanced else 1
+                for i in range(numRows):
+                    envelope.append([self.currEnvelope[i][0], round(self.currEnvelope[i][1] * 32700)])
+                envelope.append("hang")
+                instData.envelope = add_envelope(self.decomp, self.selectedSoundbank.text(0), envelope)
+            else:
+                instData.envelope = oldEnvelope
+            # For blank instruments, assign new name and change it
+            # This will trigger the code to rename the instrument in the bank
+            if self.selectedInstrument.text(0) == "<Empty>":
+                def instrumentNameUsed(inst):
+                    return inst in get_instruments(self.decomp, self.selectedSoundbank.text(0))
+                newName = get_new_name("inst0", instrumentNameUsed)
+                self.selectedInstrument.oldtext = newName
+                self.selectedInstrument.setText(0, newName)
+
             save_instrument_data(self.decomp, self.selectedSoundbank.text(0), self.selectedInstrument.text(0), instData)
+            cleanup_unused_envelopes(self.decomp, self.selectedSoundbank.text(0))
         except AudioManagerException as e:
             self.set_info_message("Error: " + str(e), COLOR_RED)
 
@@ -454,7 +477,8 @@ class SoundbankTab(MainTab):
     def instrument_name_changed(self, instrumentItem):
         try:
             name = instrumentItem.text(0)
-            rename_instrument(self.decomp, instrumentItem.parent().text(0), instrumentItem.oldtext, name)
+            index = self.selectedSoundbank.indexOfChild(instrumentItem)
+            rename_instrument(self.decomp, instrumentItem.parent().text(0), index, name)
             instrumentItem.oldtext = name
         except AudioManagerException as e:
             instrumentItem.setText(0, instrumentItem.oldtext)

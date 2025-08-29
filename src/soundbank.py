@@ -44,6 +44,8 @@ class Sample:
     
 class Instrument:
     def __init__(self, data, bank):
+        self.sound_lo = self.sound_hi = self.normal_range_hi = self.normal_range_lo = self.envelope = None
+        self.release_rate = 208
         if data is None: return
         self.release_rate = data["release_rate"]
         self.sound = Sample(data["sound"], bank)
@@ -182,16 +184,15 @@ def rename_soundbank(decomp, oldSoundbank, newSoundbank):
     with open(sequencesJson, "w") as jsonFile:
         json.dump(jsonData, jsonFile, indent=4)
 
-def rename_instrument(decomp, soundbank, oldInstrument, newInstrument):
+def rename_instrument(decomp, soundbank, index, newInstrument):
     validate_name(newInstrument, "instrument name")
     jsonData = open_soundbank(decomp, soundbank)
 
-    if not oldInstrument in jsonData["instrument_list"]:
-        raise AudioManagerException(f"Instrument {oldInstrument} does not exist in soundbank {soundbank}")
     if newInstrument in jsonData["instrument_list"]:
         raise AudioManagerException(f"Instrument {newInstrument} already exists in soundbank {soundbank}")
 
-    jsonData["instrument_list"][jsonData["instrument_list"].index(oldInstrument)] = newInstrument
+    oldInstrument = jsonData["instrument_list"][index]
+    jsonData["instrument_list"][index] = newInstrument
 
     # Rename instrument in instruments
     if "instruments" in jsonData:
@@ -226,6 +227,8 @@ def get_all_samples_in_bank(decomp, samplebank):
     return sort_with_hex_prefix([f for f in os.listdir(sampleFolder) if f.endswith(".aiff")])
 
 def get_instrument_data(decomp, soundbank, inst):
+    if inst == "<Empty>":
+        return Instrument(None, None)
     jsonData = open_soundbank(decomp, soundbank)
     return Instrument(jsonData["instruments"][inst], get_sample_bank_path(decomp, soundbank))
 
