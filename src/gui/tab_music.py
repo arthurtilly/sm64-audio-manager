@@ -42,7 +42,7 @@ class StreamedMusicTab(MainTab):
         optionsLayout = new_widget(self.layout, QVBoxLayout, spacing=5)
         optionsLayout.addStretch(1)
 
-        self.sampleFrameWidgets = create_sample_frame(optionsLayout, self.set_audio_file)
+        self.soundFrameWidgets = create_sound_frame(optionsLayout, self.set_audio_file, True)
         panningFrame = self.create_panning_frame(optionsLayout)
         nameFrame = self.create_names_frame(optionsLayout)
 
@@ -179,8 +179,8 @@ class StreamedMusicTab(MainTab):
     # Import a sequence into decomp
     def import_pressed(self):
         try:
-            loopBegin = validate_int(self.sampleFrameWidgets.loopBegin.text(), "loop begin")
-            loopEnd = validate_int(self.sampleFrameWidgets.loopEnd.text(), "loop end")
+            loopBegin = validate_int(self.soundFrameWidgets.loopBegin.text(), "loop begin")
+            loopEnd = validate_int(self.soundFrameWidgets.loopEnd.text(), "loop end")
 
             # Calculate array of panning values
             panning = []
@@ -195,7 +195,7 @@ class StreamedMusicTab(MainTab):
 
             import_audio(self.decomp, self.selectedSoundFile, replace,
                     self.sequenceName.text(), self.sequenceFilename.text(), self.soundbankName.text(), self.sampleName.text(),
-                    self.sampleFrameWidgets.doLoop.isChecked(), loopBegin, loopEnd, panning)
+                    self.soundFrameWidgets.doLoop.isChecked(), loopBegin, loopEnd, panning)
             if replace is None:
                 # If not replacing, add a new sequence to the view and select it
                 self.sequences.append((self.sequenceFilename.text(), self.sequenceName.text()))
@@ -213,23 +213,22 @@ class StreamedMusicTab(MainTab):
             self.set_info_message("Error: " + str(e), COLOR_RED)
 
     def set_audio_file(self, path):
-        self.selectedSoundFile = path
-
-        # Attempt to open file
         try:
-            with sf.SoundFile(path) as snd:
-                nchannels = snd.channels
-        except sf.SoundFileError:
+            path = select_sound_file(self.soundFrameWidgets, path)
+        except AudioManagerException as e:
             # Invalid AIFF file
             self.sequenceName.setText("")
             self.sequenceFilename.setText("")
             self.soundbankName.setText("")
             self.sampleName.setText("")
             self.toggle_import_options(False)
-            self.set_info_message("Error: Invalid AIFF file", COLOR_RED)
+            self.set_info_message("Error: " + str(e), COLOR_RED)
             return
         self.set_info_message("", COLOR_WHITE)
 
+        self.selectedSoundFile = path
+        with sf.SoundFile(path) as snd:
+            nchannels = snd.channels
         # Determine number of channels and initialise notebook for panning tabs
         self.resize_panning_frame(nchannels)
         if nchannels == 2:

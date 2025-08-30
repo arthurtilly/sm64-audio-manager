@@ -75,16 +75,7 @@ class ImportSfxTab(MainTab):
 
         optionsLayout.addStretch(1)
 
-        # Import button
-        importWidget, self.importButton = add_centered_button_to_layout(optionsLayout, "Import!", self.import_pressed)
-
-        self.importInfoLabel = QLabel(text="")
-        self.importInfoLabel.setAlignment(QtCore.Qt.AlignmentFlag.AlignCenter)
-        optionsLayout.addWidget(self.importInfoLabel)
-
-        optionsLayout.addStretch(1)
-
-        self.toggleRequiresSound = (importWidget, defineFrame, addEntriesLabel, soundFrame)
+        self.toggleRequiresSound = (defineFrame, addEntriesLabel, soundFrame)
         self.toggle_all_options()
 
     
@@ -267,22 +258,6 @@ class ImportSfxTab(MainTab):
         palette = self.importInfoLabel.palette()
         palette.setColor(QPalette.ColorRole.WindowText, colour)
         self.importInfoLabel.setPalette(palette)
-
-
-    # Import a sequence into decomp
-    def import_pressed(self):
-        pass
-
-
-    # Load new sound file
-    def select_sound_file_button_pressed(self):
-        dialog = QFileDialog()
-        dialog.setFileMode(QFileDialog.FileMode.ExistingFile)
-        dialog.setNameFilter("AIFF files (*.aiff)")
-        dialog.setViewMode(QFileDialog.ViewMode.Detail)
-        if dialog.exec() == QFileDialog.DialogCode.Accepted:
-            self.set_audio_file(dialog.selectedFiles()[0])
-
 
     # Toggle the loop options on or off whenever the loop checkbox is modified
     def loop_checkbutton_pressed(self):

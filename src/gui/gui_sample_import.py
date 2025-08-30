@@ -9,24 +9,24 @@ from PyQt6.QtGui import *
 from PyQt6 import QtCore
 
 @dataclass
-class SampleFrameWidgets:
+class SoundFrameWidgets:
+    soundFrame: QFrame
     selectedSoundFile: QLabel
     estimatedSizeLabel: QLabel
     doLoop: QCheckBox
     loopBegin: QLineEdit
     loopEnd: QLineEdit
-    setAudioFile: callable
     loopWidgets: tuple
 
-def create_sample_frame(layout, setAudioFile):
-    sampleFrame = QFrame()
-    sampleLayout = QVBoxLayout()
-    sampleFrame.setLayout(sampleLayout)
-    layout.addWidget(sampleFrame)
-    sampleFrame.setFrameShape(QFrame.Shape.StyledPanel)
+def create_sound_frame(layout, setAudioFile, includeSize):
+    soundFrame = QFrame()
+    soundLayout = QVBoxLayout()
+    soundFrame.setLayout(soundLayout)
+    layout.addWidget(soundFrame)
+    soundFrame.setFrameShape(QFrame.Shape.StyledPanel)
 
-    # First line: Widget for sample selection
-    selectSoundFileLayout = new_widget(sampleLayout, QGridLayout)
+    # First line: Widget for sound selection
+    selectSoundFileLayout = new_widget(soundLayout, QGridLayout)
     selectSoundFileLayout.setVerticalSpacing(0)
     grid_add_spacer(selectSoundFileLayout, 0, 0)
 
@@ -41,11 +41,13 @@ def create_sample_frame(layout, setAudioFile):
     selectSoundFileLayout.addWidget(selectSoundFileButton, 0, 3)
     grid_add_spacer(selectSoundFileLayout, 0, 4)
 
-    estimatedSizeLabel = QLabel(text="")
-    selectSoundFileLayout.addWidget(estimatedSizeLabel, 1, 1)
+    estimatedSizeLabel = None
+    if includeSize:
+        estimatedSizeLabel = QLabel(text="")
+        selectSoundFileLayout.addWidget(estimatedSizeLabel, 1, 1)
 
     # Second line: Set loop data
-    loopInfoLayout = new_widget(sampleLayout, QHBoxLayout)
+    loopInfoLayout = new_widget(soundLayout, QHBoxLayout)
     loopInfoLayout.addStretch(1)
 
     # Loop checkbox
@@ -82,48 +84,49 @@ def create_sample_frame(layout, setAudioFile):
     loopInfoLayout.setStretchFactor(loopEnd, 0)
     loopInfoLayout.addStretch(1)
 
-    sampleFrameWidgets = SampleFrameWidgets(
+    soundFrameWidgets = SoundFrameWidgets(
+        soundFrame=soundFrame,
         selectedSoundFile=selectedFileLabel,
         estimatedSizeLabel=estimatedSizeLabel,
         loopBegin=loopBegin,
         loopEnd=loopEnd,
         doLoop=doLoop,
-        setAudioFile=setAudioFile,
         loopWidgets=(loopBeginLabel, loopBegin, loopEndLabel, loopEnd)
     )
 
-    selectSoundFileButton.clicked.connect(lambda: select_sound_file_button_pressed(sampleFrameWidgets))
-    doLoop.stateChanged.connect(lambda: loop_checkbutton_pressed(doLoop, sampleFrameWidgets))
+    selectSoundFileButton.clicked.connect(lambda: setAudioFile(None))
+    doLoop.stateChanged.connect(lambda: loop_checkbutton_pressed(doLoop, soundFrameWidgets))
 
-    return sampleFrameWidgets
+    return soundFrameWidgets
 
-def loop_checkbutton_pressed(checkbox, sampleFrameWidgets):
-    for widget in sampleFrameWidgets.loopWidgets:
+def loop_checkbutton_pressed(checkbox, soundFrameWidgets):
+    for widget in soundFrameWidgets.loopWidgets:
         widget.setEnabled(checkbox.isChecked())
 
 # Load new sound file
-def select_sound_file_button_pressed(sampleFrameWidgets):
-    dialog = QFileDialog()
-    dialog.setFileMode(QFileDialog.FileMode.ExistingFile)
-    dialog.setNameFilter("AIFF files (*.aiff)")
-    dialog.setViewMode(QFileDialog.ViewMode.Detail)
-    if dialog.exec() == QFileDialog.DialogCode.Accepted:
-        path = dialog.selectedFiles()[0]
-        try:
-            with sf.SoundFile(path) as snd:
-                nframes = len(snd)
-        except sf.SoundFileError:
-            sampleFrameWidgets.selectedSoundFile.setText("Selected audio file: None")
-            sampleFrameWidgets.estimatedSizeLabel.setText("")
-            sampleFrameWidgets.loopBegin.setText("")
-            sampleFrameWidgets.loopEnd.setText("")
+def select_sound_file(soundFrameWidgets, path):
+    if path is None:
+        dialog = QFileDialog()
+        dialog.setFileMode(QFileDialog.FileMode.ExistingFile)
+        dialog.setNameFilter("AIFF files (*.aiff)")
+        dialog.setViewMode(QFileDialog.ViewMode.Detail)
+        if dialog.exec() == QFileDialog.DialogCode.Accepted:
+            path = dialog.selectedFiles()[0]
 
-            sampleFrameWidgets.setAudioFile(path)
-            return
+    try:
+        with sf.SoundFile(path) as snd:
+            nframes = len(snd)
+    except sf.SoundFileError:
+        soundFrameWidgets.selectedSoundFile.setText("Selected audio file: None")
+        soundFrameWidgets.loopBegin.setText("")
+        soundFrameWidgets.loopEnd.setText("")
+        if soundFrameWidgets.estimatedSizeLabel is not None:
+            soundFrameWidgets.estimatedSizeLabel.setText("")
+        raise AudioManagerException("Invalid AIFF file")
 
-        sampleFrameWidgets.loopBegin.setText("0")
-        sampleFrameWidgets.loopEnd.setText(str(nframes))
-        sampleFrameWidgets.estimatedSizeLabel.setText("Estimated size in ROM: %.2f MB" % estimate_audio_size(path))
-        sampleFrameWidgets.selectedSoundFile.setText("Selected audio file: " + os.path.basename(path))
-
-        sampleFrameWidgets.setAudioFile(path)
+    soundFrameWidgets.selectedSoundFile.setText("Selected audio file: " + os.path.basename(path))
+    soundFrameWidgets.loopBegin.setText("0")
+    soundFrameWidgets.loopEnd.setText(str(nframes))
+    if soundFrameWidgets.estimatedSizeLabel is not None:
+        soundFrameWidgets.estimatedSizeLabel.setText("Estimated size in ROM: %.2f MB" % estimate_audio_size(path))
+    return path

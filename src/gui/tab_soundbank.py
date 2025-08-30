@@ -7,6 +7,7 @@ import playsound3
 import tempfile
 
 from gui_misc import *
+from gui_sample_import import *
 append_parent_dir()
 from misc import *
 from soundbank import *
@@ -44,6 +45,9 @@ class SoundbankTab(MainTab):
         optionsLayout.addWidget(addEntriesLabel)
         instrumentFrame = self.create_instrument_frame(optionsLayout)
 
+        self.soundFrameWidgets = create_sound_frame(optionsLayout, self.set_audio_file, False)
+        self.selectedSoundFile = None
+
         sampleLabel = QLabel(text="Sample data:")
         optionsLayout.addWidget(sampleLabel)
 
@@ -65,7 +69,7 @@ class SoundbankTab(MainTab):
         optionsLayout.addWidget(self.importInfoLabel)
         optionsLayout.addStretch(1)
 
-        self.toggleRequiresBank = (instrumentFrame,addEntriesLabel)
+        self.toggleRequiresBank = (instrumentFrame,addEntriesLabel,self.soundFrameWidgets.soundFrame)
         self.toggleRequiresBankAndInstrument = (referenceLabel,referenceFrame,sampleLabel,self.sampleFrame)
         self.hideOnMusicBank = (referenceLabel, referenceFrame)
         self.toggle_all_options()
@@ -439,6 +443,16 @@ class SoundbankTab(MainTab):
         deleteEnabled = self.update_references()
         self.deleteButton.setEnabled(deleteEnabled)
         self.toggle_all_options()
+
+    def set_audio_file(self, path):
+        try:
+            path = select_sound_file(self.soundFrameWidgets, path)
+        except AudioManagerException as e:
+            self.set_info_message("Error: " + str(e), COLOR_RED)
+            return
+        
+        self.set_info_message("", COLOR_WHITE)
+        self.selectedSoundFile = path
 
     # Change the info message
     def set_info_message(self, message, colour):

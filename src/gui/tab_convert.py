@@ -270,5 +270,5 @@ class ConvertAudioTab(MainTab):
         inputFile.close()
         outputFile.close()
 
-        self.mainWindow.set_audio_file(self.outputPath.text())
+        self.mainWindow.set_all_audio_files(self.outputPath.text())
         self.set_info_message("Success!", COLOR_GREEN)

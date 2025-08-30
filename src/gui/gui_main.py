@@ -98,7 +98,7 @@ class MainWindow(QWidget):
         self.tabs.append(newTab)
 
 
-    def set_audio_file(self, path):
+    def set_all_audio_files(self, path):
         for tab in self.tabs:
             tab.set_audio_file(path)
 

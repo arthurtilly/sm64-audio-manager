@@ -11,6 +11,26 @@ COLOR_GREEN = QColor(127, 255, 127)
 COLOR_ORANGE = QColor(255, 127, 0)
 
 
+# Base class for a tab in the main window notebook
+class MainTab(QWidget):
+    def __init__(self, window, decomp):
+        super().__init__()
+        self.decomp = decomp
+        self.mainWindow = window
+        self.create_page()
+
+    def create_page(self):
+        pass
+
+    def set_audio_file(self, path):
+        pass
+
+    # Switch between having all options enabled or disabled
+    def toggle_options(self, options, enabled):
+        for widget in options:
+            widget.setEnabled(enabled)
+
+
 # Allows importing from the parent directory
 def append_parent_dir():
     parent_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
@@ -49,25 +69,6 @@ def grid_add_spacer(grid, row, column):
     spacerItem = QSpacerItem(0, 0, QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Minimum)
     grid.addItem(spacerItem, row, column)
 
-
-# Base class for a tab in the main window notebook
-class MainTab(QWidget):
-    def __init__(self, window, decomp):
-        super().__init__()
-        self.decomp = decomp
-        self.mainWindow = window
-        self.create_page()
-
-    def create_page(self):
-        pass
-
-    def set_audio_file(self, path):
-        pass
-
-    # Switch between having all options enabled or disabled
-    def toggle_options(self, options, enabled):
-        for widget in options:
-            widget.setEnabled(enabled)
 
 def fix_checkbox_palette(box):
     palette = box.palette()
