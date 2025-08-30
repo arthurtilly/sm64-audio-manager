@@ -251,14 +251,6 @@ class ImportSfxTab(MainTab):
         self.loopEndLabel.setEnabled(enabled)
         self.loopEnd.setEnabled(enabled)
 
-
-    # Change the info message
-    def set_info_message(self, message, colour):
-        self.importInfoLabel.setText(message)
-        palette = self.importInfoLabel.palette()
-        palette.setColor(QPalette.ColorRole.WindowText, colour)
-        self.importInfoLabel.setPalette(palette)
-
     # Toggle the loop options on or off whenever the loop checkbox is modified
     def loop_checkbutton_pressed(self):
         self.toggle_loop_options(self.doLoop.isChecked())

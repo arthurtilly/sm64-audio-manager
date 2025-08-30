@@ -51,9 +51,9 @@ class StreamedMusicTab(MainTab):
         # Import button
         importWidget, self.importButton = add_centered_button_to_layout(optionsLayout, "Import!", self.import_pressed)
 
-        self.importInfoLabel = QLabel(text="")
-        self.importInfoLabel.setAlignment(QtCore.Qt.AlignmentFlag.AlignCenter)
-        optionsLayout.addWidget(self.importInfoLabel)
+        self.infoLabel = QLabel(text="")
+        self.infoLabel.setAlignment(QtCore.Qt.AlignmentFlag.AlignCenter)
+        optionsLayout.addWidget(self.infoLabel)
 
         optionsLayout.addStretch(1)
 
@@ -168,14 +168,6 @@ class StreamedMusicTab(MainTab):
         for widget in self.toggableWidgets:
             widget.setEnabled(enabled)
 
-    # Change the info message
-    def set_info_message(self, message, colour):
-        self.importInfoLabel.setText(message)
-        palette = self.importInfoLabel.palette()
-        palette.setColor(QPalette.ColorRole.WindowText, colour)
-        self.importInfoLabel.setPalette(palette)
-
-
     # Import a sequence into decomp
     def import_pressed(self):
         try:
@@ -224,7 +216,7 @@ class StreamedMusicTab(MainTab):
             self.toggle_import_options(False)
             self.set_info_message("Error: " + str(e), COLOR_RED)
             return
-        self.set_info_message("", COLOR_WHITE)
+        self.clear_info_message()
 
         self.selectedSoundFile = path
         with sf.SoundFile(path) as snd:
@@ -266,7 +258,7 @@ class StreamedMusicTab(MainTab):
             if self.sequences[self.currentSeqId-1][0] != self.sequenceFilename.text():
                 self.set_info_message("Warning: Changing vanilla sequence filenames can cause build issues.", COLOR_ORANGE)
             else:
-                self.set_info_message("", COLOR_WHITE)
+                self.clear_info_message()
 
 
     # When a new sequence is selected, update some of the info on the right
@@ -281,7 +273,7 @@ class StreamedMusicTab(MainTab):
             self.sequenceName.setText(self.sequences[id-1][1])
             self.sequenceFilename.setText(self.sequences[id-1][0])
         else:
-            self.set_info_message("", COLOR_WHITE)
+            self.clear_info_message()
             if self.selectedSoundFile is not None:
                 filename = os.path.splitext(os.path.basename(self.selectedSoundFile))[0].replace(' ', '_')
                 self.sequenceName.setText("SEQ_%s" % filename.upper())

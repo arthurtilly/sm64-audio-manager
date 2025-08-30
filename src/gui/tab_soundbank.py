@@ -64,9 +64,9 @@ class SoundbankTab(MainTab):
         referenceFrame = self.create_references_frame(optionsLayout)
         optionsLayout.addStretch(1)
 
-        self.importInfoLabel = QLabel(text="")
-        self.importInfoLabel.setAlignment(QtCore.Qt.AlignmentFlag.AlignCenter)
-        optionsLayout.addWidget(self.importInfoLabel)
+        self.infoLabel = QLabel(text="")
+        self.infoLabel.setAlignment(QtCore.Qt.AlignmentFlag.AlignCenter)
+        optionsLayout.addWidget(self.infoLabel)
         optionsLayout.addStretch(1)
 
         self.toggleRequiresBank = (instrumentFrame,addEntriesLabel,self.soundFrameWidgets.soundFrame)
@@ -428,6 +428,7 @@ class SoundbankTab(MainTab):
             self.set_info_message("Error: " + str(e), COLOR_RED)
 
     def inst_selection_changed(self):
+        self.clear_info_message()
         selectedItem = self.soundbankList.currentItem()
         if selectedItem is not None:
             if selectedItem.parent() is not None:
@@ -450,16 +451,10 @@ class SoundbankTab(MainTab):
         except AudioManagerException as e:
             self.set_info_message("Error: " + str(e), COLOR_RED)
             return
-        
-        self.set_info_message("", COLOR_WHITE)
+
+        self.clear_info_message()
         self.selectedSoundFile = path
 
-    # Change the info message
-    def set_info_message(self, message, colour):
-        self.importInfoLabel.setText(message)
-        palette = self.importInfoLabel.palette()
-        palette.setColor(QPalette.ColorRole.WindowText, colour)
-        self.importInfoLabel.setPalette(palette)
 
     def load_soundbank_list(self):
         for soundbank in self.soundbanks:
@@ -499,6 +494,7 @@ class SoundbankTab(MainTab):
             self.set_info_message("Error: " + str(e), COLOR_RED)
 
     def tree_item_changed(self, item):
+        self.clear_info_message()
         if item.parent() is None:
             self.soundbank_name_changed(item)
         else:
@@ -522,6 +518,7 @@ class SoundbankTab(MainTab):
             self.set_info_message("Error: " + str(e), COLOR_RED)
 
     def insert_new_instrument(self, index):
+        self.clear_info_message()
         # Add new child widget in correct position
         try:
             add_instrument(self.decomp, self.selectedSoundbank.text(0), index)

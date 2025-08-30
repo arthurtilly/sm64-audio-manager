@@ -114,9 +114,9 @@ class ConvertAudioTab(MainTab):
         convertWidget, self.convertButton = add_centered_button_to_layout(self.layout, "Convert!", self.convert_pressed)
 
         # Import info
-        self.importInfoLabel = QLabel(text="")
-        self.importInfoLabel.setAlignment(QtCore.Qt.AlignmentFlag.AlignCenter)
-        self.layout.addWidget(self.importInfoLabel)
+        self.infoLabel = QLabel(text="")
+        self.infoLabel.setAlignment(QtCore.Qt.AlignmentFlag.AlignCenter)
+        self.layout.addWidget(self.infoLabel)
 
         self.layout.addStretch(2)
 
@@ -134,15 +134,6 @@ class ConvertAudioTab(MainTab):
     def toggle_import_options(self, enabled):
         for widget in self.toggleableWidgets:
             widget.setEnabled(enabled)
-
-    
-    # Change the info message
-    def set_info_message(self, message, colour):
-        self.importInfoLabel.setText(message)
-        palette = self.importInfoLabel.palette()
-        palette.setColor(QPalette.ColorRole.WindowText, colour)
-        self.importInfoLabel.setPalette(palette)
-
 
     # Calculate the estimated size of the imported audio
     def calculate_estimated_size(self):
@@ -186,7 +177,7 @@ class ConvertAudioTab(MainTab):
                 self.toggle_import_options(False)
                 self.set_info_message("Error: Invalid audio file", COLOR_RED)
                 return
-            self.set_info_message("", COLOR_WHITE)
+            self.clear_info_message()
 
             # Set labels based on audio file properties
             self.selectedFileLabel.setText("Selected audio file: " + os.path.basename(self.inputFile))

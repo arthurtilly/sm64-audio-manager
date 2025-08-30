@@ -17,6 +17,7 @@ class MainTab(QWidget):
         super().__init__()
         self.decomp = decomp
         self.mainWindow = window
+        self.infoLabel = None
         self.create_page()
 
     def create_page(self):
@@ -24,6 +25,17 @@ class MainTab(QWidget):
 
     def set_audio_file(self, path):
         pass
+
+    def set_info_message(self, text, color):
+        if self.infoLabel is None:
+            return
+        self.infoLabel.setText(text)
+        palette = self.infoLabel.palette()
+        palette.setColor(QPalette.ColorRole.WindowText, color)
+        self.infoLabel.setPalette(palette)
+
+    def clear_info_message(self):
+        self.set_info_message("", COLOR_WHITE)
 
     # Switch between having all options enabled or disabled
     def toggle_options(self, options, enabled):
