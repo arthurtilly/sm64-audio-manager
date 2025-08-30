@@ -97,10 +97,8 @@ def create_soundbank(decomp, name, samples):
         "date": datetime.datetime.now().strftime("%Y-%m-%d"),
         "sample_bank": "streamed_audio",
         "envelopes": {
-            "envelope0": [
-                [6, 32700],
-                [6, 32700],
-                [32700, 29430],
+            "envelope": [
+                [2, 32700],
                 "hang"
             ]            
         },
@@ -113,7 +111,7 @@ def create_soundbank(decomp, name, samples):
 
         jsonData["instruments"]["channel_%d" % (i + 1)] = {
             "release_rate": 10,
-            "envelope": "envelope0",
+            "envelope": "envelope",
             "sound": sampleName
         }
 

@@ -69,7 +69,7 @@ class MainTab(QWidget):
         for widget in options:
             widget.setEnabled(enabled)
 
-    def fix_checkbox_palette(self, box):
-        palette = box.palette()
-        palette.setColor(QPalette.ColorRole.Base, self.palette().color(QPalette.ColorRole.Button))
-        box.setPalette(palette)
+def fix_checkbox_palette(box):
+    palette = box.palette()
+    palette.setColor(QPalette.ColorRole.Base, box.parentWidget().palette().color(QPalette.ColorRole.Button))
+    box.setPalette(palette)

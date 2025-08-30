@@ -108,7 +108,7 @@ class SoundbankTab(MainTab):
         tuningBox = None
         if rangeText:
             rangeBox = QCheckBox(text=rangeText)
-            self.fix_checkbox_palette(rangeBox)
+            fix_checkbox_palette(rangeBox)
             rangeBox.stateChanged.connect(lambda: self.sample_set_row_enabled(index, rangeBox.isChecked()))
             rangeField = QLineEdit()
             rangeField.setMaximumWidth(40)
@@ -243,10 +243,10 @@ class SoundbankTab(MainTab):
         releaseRateLayout.addStretch(1)
 
         advancedOptions = QCheckBox(text = "Show advanced options...")
-        self.fix_checkbox_palette(advancedOptions)
         advancedOptions.setChecked(advanced)
         advancedOptions.stateChanged.connect(lambda: self.update_sample_data(advancedOptions.isChecked()))
         releaseRateLayout.addWidget(advancedOptions)
+        fix_checkbox_palette(advancedOptions)
         releaseRateLayout.addStretch(1)
 
         saveButton = QPushButton(text="Save...")

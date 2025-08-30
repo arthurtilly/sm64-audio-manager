@@ -7,6 +7,7 @@ from PyQt6 import QtCore
 
 
 from gui_misc import *
+from gui_sample_import import *
 append_parent_dir()
 from misc import *
 from main import *
@@ -41,7 +42,7 @@ class StreamedMusicTab(MainTab):
         optionsLayout = new_widget(self.layout, QVBoxLayout, spacing=5)
         optionsLayout.addStretch(1)
 
-        sampleFrame = self.create_sample_frame(optionsLayout)
+        self.sampleFrameWidgets = create_sample_frame(optionsLayout, self.set_audio_file)
         panningFrame = self.create_panning_frame(optionsLayout)
         nameFrame = self.create_names_frame(optionsLayout)
 
@@ -57,87 +58,12 @@ class StreamedMusicTab(MainTab):
         optionsLayout.addStretch(1)
 
         self.toggableWidgets = (
-            self.loopInfoLayout.parentWidget(),
             panningFrame,
             nameFrame,
             importWidget,
         )
 
         self.toggle_import_options(False)
-
-
-    # Create the frame for choosing a sample to import
-    def create_sample_frame(self, layout):
-        sampleFrame = QFrame()
-        sampleLayout = QVBoxLayout()
-        sampleFrame.setLayout(sampleLayout)
-        layout.addWidget(sampleFrame)
-        sampleFrame.setFrameShape(QFrame.Shape.StyledPanel)
-
-        # First line: Widget for sample selection
-        selectSoundFileLayout = new_widget(sampleLayout, QGridLayout)
-        selectSoundFileLayout.setVerticalSpacing(0)
-        grid_add_spacer(selectSoundFileLayout, 0, 0)
-
-        # Label
-        self.selectedSoundFile = None
-        self.selectedFileLabel = QLabel(text="Selected audio file: None")
-        selectSoundFileLayout.addWidget(self.selectedFileLabel, 0, 1)
-        grid_add_spacer(selectSoundFileLayout, 0, 2)
-    
-        # Browse button
-        self.selectSoundFileButton = QPushButton(text="Browse...")
-        self.selectSoundFileButton.clicked.connect(self.select_sound_file_button_pressed)
-        selectSoundFileLayout.addWidget(self.selectSoundFileButton, 0, 3)
-        self.selectSoundFileButton.setSizePolicy(QSizePolicy.Policy.Fixed, QSizePolicy.Policy.Fixed)
-        grid_add_spacer(selectSoundFileLayout, 0, 4)
-
-        self.estimatedSizeLabel = QLabel(text="")
-        selectSoundFileLayout.addWidget(self.estimatedSizeLabel, 1, 1)
-
-
-        # Second line: Set loop data
-        self.loopInfoLayout = new_widget(sampleLayout, QHBoxLayout)
-        self.loopInfoLayout.addStretch(1)
-
-        # Loop checkbox
-        self.doLoop = QCheckBox(text="Loop")
-        self.doLoop.setChecked(True)
-        self.doLoop.stateChanged.connect(self.loop_checkbutton_pressed)
-        self.loopInfoLayout.addWidget(self.doLoop)
-        self.doLoop.setSizePolicy(QSizePolicy.Policy.Fixed, QSizePolicy.Policy.Fixed)
-        self.fix_checkbox_palette(self.doLoop)
-        self.loopInfoLayout.addStretch(1)
-
-        # Loop start
-        self.loopBeginLabel = QLabel(text="Loop start:")
-        self.loopInfoLayout.addWidget(self.loopBeginLabel)
-
-        self.loopBegin = QLineEdit()
-        self.loopBegin.setAlignment(QtCore.Qt.AlignmentFlag.AlignRight)
-        self.loopBegin.setMaximumWidth(80)
-        self.loopBegin.setText("")
-        self.loopBegin.setValidator(QIntValidator())
-        self.loopInfoLayout.addWidget(self.loopBegin)
-        self.loopInfoLayout.setStretchFactor(self.loopBegin, 0)
-
-        self.loopInfoLayout.addStretch(1)
-
-        # Loop end
-        self.loopEndLabel = QLabel(text="Loop end:")
-        self.loopInfoLayout.addWidget(self.loopEndLabel)
-
-        self.loopEnd = QLineEdit()
-        self.loopEnd.setAlignment(QtCore.Qt.AlignmentFlag.AlignRight)
-        self.loopEnd.setMaximumWidth(80)
-        self.loopEnd.setText("")
-        self.loopEnd.setValidator(QIntValidator())
-        self.loopInfoLayout.addWidget(self.loopEnd)
-        self.loopInfoLayout.setStretchFactor(self.loopEnd, 0)
-
-        self.loopInfoLayout.addStretch(1)
-
-        return sampleFrame
 
     
     # Create the frame for specifying panning for each channel
@@ -242,15 +168,6 @@ class StreamedMusicTab(MainTab):
         for widget in self.toggableWidgets:
             widget.setEnabled(enabled)
 
-
-    # Toggle loop options between enabled and disabled
-    def toggle_loop_options(self, enabled):
-        self.loopBeginLabel.setEnabled(enabled)
-        self.loopBegin.setEnabled(enabled)
-        self.loopEndLabel.setEnabled(enabled)
-        self.loopEnd.setEnabled(enabled)
-
-
     # Change the info message
     def set_info_message(self, message, colour):
         self.importInfoLabel.setText(message)
@@ -261,23 +178,24 @@ class StreamedMusicTab(MainTab):
 
     # Import a sequence into decomp
     def import_pressed(self):
-        loopBegin, loopEnd = calculate_loops(self.selectedSoundFile, int(self.loopBegin.text()), None, int(self.loopEnd.text()), None)
-
-        # Calculate array of panning values
-        panning = []
-        for _, _, slider in self.pans:
-            panning.append(slider.value())
-
-        # Determine which sequence ID to replace, or to add a new one
-        if self.currentSeqId == 0:
-            replace = None
-        else:
-            replace = str(self.currentSeqId)
-
         try:
+            loopBegin = validate_int(self.sampleFrameWidgets.loopBegin.text(), "loop begin")
+            loopEnd = validate_int(self.sampleFrameWidgets.loopEnd.text(), "loop end")
+
+            # Calculate array of panning values
+            panning = []
+            for _, _, slider in self.pans:
+                panning.append(slider.value())
+
+            # Determine which sequence ID to replace, or to add a new one
+            if self.currentSeqId == 0:
+                replace = None
+            else:
+                replace = str(self.currentSeqId)
+
             import_audio(self.decomp, self.selectedSoundFile, replace,
                     self.sequenceName.text(), self.sequenceFilename.text(), self.soundbankName.text(), self.sampleName.text(),
-                    self.doLoop.isChecked(), loopBegin, loopEnd, panning)
+                    self.sampleFrameWidgets.doLoop.isChecked(), loopBegin, loopEnd, panning)
             if replace is None:
                 # If not replacing, add a new sequence to the view and select it
                 self.sequences.append((self.sequenceFilename.text(), self.sequenceName.text()))
@@ -300,24 +218,17 @@ class StreamedMusicTab(MainTab):
         # Attempt to open file
         try:
             with sf.SoundFile(path) as snd:
-                nframes = len(snd)
                 nchannels = snd.channels
         except sf.SoundFileError:
             # Invalid AIFF file
-            self.selectedFileLabel.setText("Selected audio file: None")
-            self.estimatedSizeLabel.setText("")
             self.sequenceName.setText("")
             self.sequenceFilename.setText("")
             self.soundbankName.setText("")
             self.sampleName.setText("")
-            self.loopBegin.setText("")
-            self.loopEnd.setText("")
             self.toggle_import_options(False)
             self.set_info_message("Error: Invalid AIFF file", COLOR_RED)
             return
         self.set_info_message("", COLOR_WHITE)
-
-        self.selectedFileLabel.setText("Selected audio file: " + os.path.basename(self.selectedSoundFile))
 
         # Determine number of channels and initialise notebook for panning tabs
         self.resize_panning_frame(nchannels)
@@ -329,10 +240,8 @@ class StreamedMusicTab(MainTab):
                 self.pans[i][2].setValue(0)
 
         self.panning_changed(None)
-        
+
         # Initialise other data fields
-        self.loopBegin.setText("0")
-        self.loopEnd.setText(str(nframes))
         filename = os.path.splitext(os.path.basename(self.selectedSoundFile))[0].replace(' ', '_')
         self.sequenceName.setText("SEQ_%s" % filename.upper())
         # If a vanilla sequence, don't change the sequence filename to be safe
@@ -341,25 +250,9 @@ class StreamedMusicTab(MainTab):
 
         self.soundbankName.setText("%s" % filename.lower())
         self.sampleName.setText("%s" % filename.lower())
-        self.estimatedSizeLabel.setText("Estimated size in ROM: %.2f MB" % estimate_audio_size(self.selectedSoundFile))
 
         # Enable all options
         self.toggle_import_options(True)
-
-
-    # Load new sound file
-    def select_sound_file_button_pressed(self):
-        dialog = QFileDialog()
-        dialog.setFileMode(QFileDialog.FileMode.ExistingFile)
-        dialog.setNameFilter("AIFF files (*.aiff)")
-        dialog.setViewMode(QFileDialog.ViewMode.Detail)
-        if dialog.exec() == QFileDialog.DialogCode.Accepted:
-            self.set_audio_file(dialog.selectedFiles()[0])
-
-
-    # Toggle the loop options on or off whenever the loop checkbox is modified
-    def loop_checkbutton_pressed(self):
-        self.toggle_loop_options(self.doLoop.isChecked())
 
 
     # Update the pan value display when the slider is changed

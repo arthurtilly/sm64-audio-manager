@@ -84,7 +84,7 @@ class ConvertAudioTab(MainTab):
         self.monoCheckbox = QCheckBox(text="Mix down to mono?")
         self.outputFormatLayout.addWidget(self.monoCheckbox)
         self.monoCheckbox.stateChanged.connect(self.calculate_estimated_size)
-        self.fix_checkbox_palette(self.monoCheckbox)
+        fix_checkbox_palette(self.monoCheckbox)
 
         self.outputFormatLayout.addStretch(3)
 
