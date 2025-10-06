@@ -37,6 +37,26 @@ class DefineRow:
     priority: QSpinBox
     flags: QPushButton
 
+# Small modal window for setting flags
+# Contains checkboxes and a Save/Cancel button
+class DefineFlagsWindow(QDialog):
+    def __init__(self, parent, flags):
+        super().__init__(parent)
+        self.setWindowTitle("Set flags")
+        self.setModal(True)
+        self.layout = QVBoxLayout()
+        self.setLayout(self.layout)
+
+        label = QLabel(text=flags)
+        self.layout.addWidget(label)
+
+        button_box = QDialogButtonBox(
+            QDialogButtonBox.StandardButton.Save | QDialogButtonBox.StandardButton.Cancel
+        )
+        button_box.accepted.connect(self.accept)  # Save
+        button_box.rejected.connect(self.reject)  # Cancel
+
+        self.layout.addWidget(button_box)
 
 class ImportSfxTab(MainTab):
     # Create the regular page for importing sequences
@@ -191,7 +211,7 @@ class ImportSfxTab(MainTab):
 
         defineFlags = QPushButton(text="Set flags...")
         defineFlags.flagsValue = flags
-        #defineFlags.clicked.connect()
+        defineFlags.clicked.connect(lambda: self.define_flags_open_window(l, defineFlags))
         defineLayout.addWidget(defineFlags)
         defineLayout.addStretch(1)
         self.defines.append(DefineRow(defineLayout.parentWidget(), defineBank, defineName, definePriority, defineFlags))
@@ -283,6 +303,13 @@ class ImportSfxTab(MainTab):
                 else:
                     self.add_define_row(sfx.define, sfx.priority, sfx.flags)
 
+    # Open dialog window for setting flags
+    def define_flags_open_window(self, index, button):
+        dialog = DefineFlagsWindow(self.mainWindow, button.flagsValue)
+        if dialog.exec():
+            print("Saved")
+        else:
+            print("Cancelled")
 
     # When a new sequence is selected, update some of the info on the right
     def sfxlist_selection_changed(self):
