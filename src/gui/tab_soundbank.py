@@ -598,13 +598,20 @@ class SoundbankTab(MainTab):
 
             outputName = os.path.splitext(os.path.basename(self.chosenSamplePath))[0]
             # Check if output already exists
-            if os.path.exists(os.path.join(sampleBankPath, outputName + ".aiff")):
-                raise AudioManagerException(f"Sample '{outputName}.aiff' already exists in sample bank!")
-
+            replaced = os.path.exists(os.path.join(sampleBankPath, outputName + ".aiff"))
 
             process_aiff_file(self.chosenSamplePath, sampleBankPath,
                 outputName=outputName, loop=self.soundFrameWidgets.doLoop.isChecked(), loopBegin=loopBegin, loopEnd=loopEnd)
-            self.set_info_message("Sample imported!", COLOR_GREEN)
+            
+            # Update sample dropdown to include new instrument and automatically select it
+            self.update_sample_data()
+            if self.selectedInstrument is not None:
+                self.sampleRows[0][0].setCurrentText(outputName + ".aiff")
+
+            if replaced:
+                self.set_info_message(f"Replaced sample {outputName}.aiff!", COLOR_GREEN)
+            else:
+                self.set_info_message("Sample imported!", COLOR_GREEN)
         except AudioManagerException as e:
             # Error encountered, echo the error message
             self.set_info_message("Error: " + str(e), COLOR_RED)
