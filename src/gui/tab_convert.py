@@ -24,7 +24,6 @@ class ConvertAudioTab(MainTab):
         selectSoundFileLayout.addStretch(3)
     
         # Label
-        self.selectedSoundFile = None
         self.selectedFileLabel = QLabel(text="Selected audio file: None")
         selectSoundFileLayout.addWidget(self.selectedFileLabel)
 

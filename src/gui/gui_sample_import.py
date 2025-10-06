@@ -31,7 +31,6 @@ def create_sound_frame(layout, setAudioFile, includeSize):
     grid_add_spacer(selectSoundFileLayout, 0, 0)
 
     # Label
-    selectedSoundFile = None
     selectedFileLabel = QLabel(text="Selected audio file: None")
     selectSoundFileLayout.addWidget(selectedFileLabel, 0, 1)
     grid_add_spacer(selectSoundFileLayout, 0, 2)
@@ -94,14 +93,29 @@ def create_sound_frame(layout, setAudioFile, includeSize):
         loopWidgets=(loopBeginLabel, loopBegin, loopEndLabel, loopEnd)
     )
 
+    sound_frame_loop_row_set_enabled(soundFrameWidgets, False)
     selectSoundFileButton.clicked.connect(lambda: setAudioFile(None))
     doLoop.stateChanged.connect(lambda: loop_checkbutton_pressed(doLoop, soundFrameWidgets))
 
     return soundFrameWidgets
 
+# Enable or disable loop settings
+def sound_frame_loop_row_set_enabled(soundFrameWidgets, enabled):
+    for widget in soundFrameWidgets.loopWidgets:
+        widget.setEnabled(enabled)
+    soundFrameWidgets.doLoop.setEnabled(enabled)
+
 def loop_checkbutton_pressed(checkbox, soundFrameWidgets):
     for widget in soundFrameWidgets.loopWidgets:
         widget.setEnabled(checkbox.isChecked())
+
+def reset_selected_file(soundFrameWidgets):
+    sound_frame_loop_row_set_enabled(soundFrameWidgets, False)
+    soundFrameWidgets.selectedSoundFile.setText("Selected audio file: None")
+    soundFrameWidgets.loopBegin.setText("")
+    soundFrameWidgets.loopEnd.setText("")
+    if soundFrameWidgets.estimatedSizeLabel is not None:
+        soundFrameWidgets.estimatedSizeLabel.setText("")
 
 # Load new sound file
 def select_sound_file(soundFrameWidgets, path):
@@ -114,17 +128,17 @@ def select_sound_file(soundFrameWidgets, path):
             path = dialog.selectedFiles()[0]
 
     try:
+        if path is None:
+            reset_selected_file(soundFrameWidgets)
+            raise AudioManagerException("Please select an AIFF file")
         with sf.SoundFile(path) as snd:
             nframes = len(snd)
     except sf.SoundFileError:
-        soundFrameWidgets.selectedSoundFile.setText("Selected audio file: None")
-        soundFrameWidgets.loopBegin.setText("")
-        soundFrameWidgets.loopEnd.setText("")
-        if soundFrameWidgets.estimatedSizeLabel is not None:
-            soundFrameWidgets.estimatedSizeLabel.setText("")
+        reset_selected_file(soundFrameWidgets)
         raise AudioManagerException("Invalid AIFF file")
 
     soundFrameWidgets.selectedSoundFile.setText("Selected audio file: " + os.path.basename(path))
+    sound_frame_loop_row_set_enabled(soundFrameWidgets, True)
     soundFrameWidgets.loopBegin.setText("0")
     soundFrameWidgets.loopEnd.setText(str(nframes))
     if soundFrameWidgets.estimatedSizeLabel is not None:

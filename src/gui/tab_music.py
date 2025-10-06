@@ -185,7 +185,7 @@ class StreamedMusicTab(MainTab):
             else:
                 replace = str(self.currentSeqId)
 
-            import_audio(self.decomp, self.selectedSoundFile, replace,
+            import_audio(self.decomp, self.chosenSamplePath, replace,
                     self.sequenceName.text(), self.sequenceFilename.text(), self.soundbankName.text(), self.sampleName.text(),
                     self.soundFrameWidgets.doLoop.isChecked(), loopBegin, loopEnd, panning)
             if replace is None:
@@ -218,7 +218,7 @@ class StreamedMusicTab(MainTab):
             return
         self.clear_info_message()
 
-        self.selectedSoundFile = path
+        self.chosenSamplePath = path
         with sf.SoundFile(path) as snd:
             nchannels = snd.channels
         # Determine number of channels and initialise notebook for panning tabs
@@ -233,7 +233,7 @@ class StreamedMusicTab(MainTab):
         self.panning_changed(None)
 
         # Initialise other data fields
-        filename = os.path.splitext(os.path.basename(self.selectedSoundFile))[0].replace(' ', '_')
+        filename = os.path.splitext(os.path.basename(self.chosenSamplePath))[0].replace(' ', '_')
         self.sequenceName.setText("SEQ_%s" % filename.upper())
         # If a vanilla sequence, don't change the sequence filename to be safe
         if not (self.currentSeqId > 0 and self.currentSeqId <= 0x22):
@@ -274,8 +274,8 @@ class StreamedMusicTab(MainTab):
             self.sequenceFilename.setText(self.sequences[id-1][0])
         else:
             self.clear_info_message()
-            if self.selectedSoundFile is not None:
-                filename = os.path.splitext(os.path.basename(self.selectedSoundFile))[0].replace(' ', '_')
+            if self.chosenSamplePath is not None:
+                filename = os.path.splitext(os.path.basename(self.chosenSamplePath))[0].replace(' ', '_')
                 self.sequenceName.setText("SEQ_%s" % filename.upper())
                 self.sequenceFilename.setText("%s" % filename.lower())
 

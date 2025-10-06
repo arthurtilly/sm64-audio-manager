@@ -12,6 +12,7 @@ append_parent_dir()
 from misc import *
 from soundbank import *
 from seq00 import *
+from aiff import *
 
 class SoundbankTab(MainTab):
     def create_page(self):
@@ -46,7 +47,14 @@ class SoundbankTab(MainTab):
         instrumentFrame = self.create_instrument_frame(optionsLayout)
 
         self.soundFrameWidgets = create_sound_frame(optionsLayout, self.set_audio_file, False)
-        self.selectedSoundFile = None
+        self.chosenSamplePath = None
+
+        importButtonLayout = new_widget(self.soundFrameWidgets.soundFrame.layout(), QHBoxLayout)
+        importButton = QPushButton(text="Import...")
+        importButton.clicked.connect(self.import_pressed)
+        importButtonLayout.addStretch(1)
+        importButtonLayout.addWidget(importButton)
+        importButtonLayout.addStretch(1)
 
         sampleLabel = QLabel(text="Sample data:")
         optionsLayout.addWidget(sampleLabel)
@@ -112,13 +120,13 @@ class SoundbankTab(MainTab):
         tuningBox = None
         if rangeText:
             rangeBox = QCheckBox(text=rangeText)
-            fix_checkbox_palette(rangeBox)
             rangeBox.stateChanged.connect(lambda: self.sample_set_row_enabled(index, rangeBox.isChecked()))
             rangeField = QLineEdit()
             rangeField.setMaximumWidth(40)
             rangeField.setValidator(QIntValidator())
             layout.addWidget(rangeBox, index, 1)
             layout.addWidget(rangeField, index, 2)
+            fix_checkbox_palette(rangeBox)
 
         sampleStartIndex = 4
         if tuning:
@@ -453,7 +461,7 @@ class SoundbankTab(MainTab):
             return
 
         self.clear_info_message()
-        self.selectedSoundFile = path
+        self.chosenSamplePath = path
 
 
     def load_soundbank_list(self):
@@ -569,3 +577,31 @@ class SoundbankTab(MainTab):
         # Play at new sample rate
         sf.write(temp, sf.read(samplePath)[0], int(sampleRate * pitchFactor))
         threading.Thread(target=playsound3.playsound, args=(temp,), daemon=True).start()
+
+    # Import sample
+    def import_pressed(self):
+        try:
+            if self.chosenSamplePath is None:
+                raise AudioManagerException("No audio file selected!")
+            
+            numChannels = sf.read(self.chosenSamplePath, always_2d=True)[0].shape[1]
+            if numChannels > 1:
+                raise AudioManagerException("Sample must be mono!")
+                
+            loopBegin = validate_int(self.soundFrameWidgets.loopBegin.text(), "loop begin")
+            loopEnd = validate_int(self.soundFrameWidgets.loopEnd.text(), "loop end")
+
+            sampleBankPath = get_sample_bank_path(self.decomp, self.selectedSoundbank.text(0))
+
+            outputName = os.path.splitext(os.path.basename(self.chosenSamplePath))[0]
+            # Check if output already exists
+            if os.path.exists(os.path.join(sampleBankPath, outputName + ".aiff")):
+                raise AudioManagerException(f"Sample '{outputName}.aiff' already exists in sample bank!")
+
+
+            process_aiff_file(self.chosenSamplePath, sampleBankPath,
+                outputName=outputName, loop=self.soundFrameWidgets.doLoop.isChecked(), loopBegin=loopBegin, loopEnd=loopEnd)
+            self.set_info_message("Sample imported!", COLOR_GREEN)
+        except AudioManagerException as e:
+            # Error encountered, echo the error message
+            self.set_info_message("Error: " + str(e), COLOR_RED)
