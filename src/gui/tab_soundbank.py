@@ -16,7 +16,7 @@ from aiff import *
 
 class SoundbankTab(MainTab):
     def create_page(self):
-        self.chunkDictionary = ChunkDictionary(self.decomp)
+        self.load_chunk_dict()
         self.sampleFrame = None
         self.selectedSoundbank = None
         self.selectedInstrument = None
@@ -432,6 +432,7 @@ class SoundbankTab(MainTab):
 
             save_instrument_data(self.decomp, self.selectedSoundbank.text(0), self.selectedInstrument.text(0), instData)
             cleanup_unused_envelopes(self.decomp, self.selectedSoundbank.text(0))
+            self.update_sample_data()
         except AudioManagerException as e:
             self.set_info_message("Error: " + str(e), COLOR_RED)
 
@@ -463,6 +464,8 @@ class SoundbankTab(MainTab):
         self.clear_info_message()
         self.chosenSamplePath = path
 
+    def load_chunk_dict(self):
+        self.chunkDictionary = ChunkDictionary(self.decomp)
 
     def load_soundbank_list(self):
         for soundbank in self.soundbanks:
@@ -517,7 +520,7 @@ class SoundbankTab(MainTab):
             # If deleted instrument is used in seq00, update all instrument IDs
             if bankIndex != -1:
                 self.chunkDictionary.delete_instrument(bankIndex, instIndex)
-                self.chunkDictionary.reconstruct_sequence_player()
+                self.mainWindow.write_chunk_dict(self.chunkDictionary)
             delete_instrument(self.decomp, self.selectedSoundbank.text(0), instIndex)
             self.selectedSoundbank.removeChild(self.selectedInstrument)
             self.selectedInstrument = None
@@ -533,7 +536,7 @@ class SoundbankTab(MainTab):
             bankIndex = soundbank_get_sfx_index(self.decomp, self.selectedSoundbank.text(0))
             if bankIndex != -1:
                 self.chunkDictionary.insert_instrument(bankIndex, index)
-                self.chunkDictionary.reconstruct_sequence_player()
+                self.mainWindow.write_chunk_dict(self.chunkDictionary)
             self.soundbankList.blockSignals(True)
             child = QTreeWidgetItem()
             child.setText(0, "<Empty>")

@@ -41,7 +41,7 @@ class DefineRow:
 class ImportSfxTab(MainTab):
     # Create the regular page for importing sequences
     def create_page(self):
-        self.chunkDictionary = ChunkDictionary(self.decomp)
+        self.load_chunk_dict()
         self.selectedChunk = None
 
         self.layout = QHBoxLayout()
@@ -257,6 +257,9 @@ class ImportSfxTab(MainTab):
 
     def sound_name_in_use(self, name):
         return self.chunkDictionary.dictionary.get("." + name) is not None
+    
+    def load_chunk_dict(self):
+        self.chunkDictionary = ChunkDictionary(self.decomp)
 
     # Determine default name for sound based on selected chunk
     def update_sound_name(self):
@@ -345,7 +348,7 @@ class ImportSfxTab(MainTab):
         sfxListEntry = item.data(0, QtCore.Qt.ItemDataRole.UserRole)
 
         delete_sfx(self.decomp, self.chunkDictionary, sfxListEntry.bankIDs[0], sfxListEntry.sfxID)
-        self.chunkDictionary.reconstruct_sequence_player()
+        self.mainWindow.write_chunk_dict(self.chunkDictionary)
 
         bankItem = item.parent()
         # Delete the item from the list
@@ -371,7 +374,7 @@ class ImportSfxTab(MainTab):
             keyOrder[keyOrder.index(oldName)] = self.selectedChunk.name
             self.chunkDictionary.dictionary = {key: self.chunkDictionary.dictionary[key] for key in keyOrder}
 
-            self.chunkDictionary.reconstruct_sequence_player()
+            self.mainWindow.write_chunk_dict(self.chunkDictionary)
 
         except AudioManagerException as e:
             sfxItem.setText(0, self.selectedChunk.name[1:])

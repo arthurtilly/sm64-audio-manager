@@ -202,10 +202,17 @@ def rename_instrument(decomp, soundbank, index, newInstrument):
 def delete_instrument(decomp, soundbank, instID):
     jsonData = open_soundbank(decomp, soundbank)
     instrument = jsonData["instrument_list"][instID]
+
+    oldSamples = set()
     if instrument is not None:
+        oldSamples = get_instrument_samples(decomp, soundbank, instrument)
         del jsonData["instruments"][instrument]
+
     del jsonData["instrument_list"][instID]
     save_soundbank(decomp, soundbank, jsonData)
+
+    for sample in oldSamples:
+        check_if_sample_unused(decomp, jsonData["sample_bank"], sample)
 
 # insert new empty instrument
 def add_instrument(decomp, soundbank, index):
@@ -224,16 +231,52 @@ def get_all_samples_in_bank(decomp, samplebank):
     sampleFolder = os.path.join(decomp, "sound", "samples", samplebank)
     return sort_with_hex_prefix([f for f in os.listdir(sampleFolder) if f.endswith(".aiff")])
 
+# Fetch data of given instrument
 def get_instrument_data(decomp, soundbank, inst):
     if inst == "<Empty>":
         return Instrument(None, None)
     jsonData = open_soundbank(decomp, soundbank)
     return Instrument(jsonData["instruments"][inst], get_sample_bank_path(decomp, soundbank))
 
+def get_instrument_samples(decomp, soundbank, inst):
+    data = get_instrument_data(decomp, soundbank, inst)
+    samples = set()
+    if data.sound is not None:
+        samples.add(data.sound.name)
+    if data.sound_lo is not None:
+        samples.add(data.sound_lo.name)
+    if data.sound_hi is not None:
+        samples.add(data.sound_hi.name)
+    return samples
+
+def check_if_sample_unused(decomp, sampleBank, sampleName):
+    # Check all soundbanks to see if the sample is used
+    # If not, delete it
+    for soundbank in scan_all_soundbanks(decomp):
+        jsonData = open_soundbank(decomp, soundbank)
+        if jsonData["sample_bank"] != sampleBank:
+            continue
+        for instName in jsonData["instruments"].keys():
+            samples = get_instrument_samples(decomp, soundbank, instName)
+            if sampleName in samples:
+                return
+    samplePath = os.path.join(decomp, "sound", "samples", sampleBank, sampleName + ".aiff")
+    if os.path.exists(samplePath):
+        os.remove(samplePath)
+           
+# Overwrite and save data of given instrument
 def save_instrument_data(decomp, soundbank, inst, data):
+    # Get samples used by old instrument
+    oldSamples = get_instrument_samples(decomp, soundbank, inst)
+
+    # Save new data
     jsonData = open_soundbank(decomp, soundbank)
     jsonData["instruments"][inst] = data.to_data()
     save_soundbank(decomp, soundbank, jsonData)
+
+    # If any old samples are no longer used, delete them
+    for sample in oldSamples:
+        check_if_sample_unused(decomp, jsonData["sample_bank"], sample)
 
 def get_envelope(decomp, soundbank, envelope):
     jsonData = open_soundbank(decomp, soundbank)

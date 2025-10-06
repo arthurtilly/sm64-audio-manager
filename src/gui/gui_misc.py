@@ -26,6 +26,9 @@ class MainTab(QWidget):
     def set_audio_file(self, path):
         pass
 
+    def load_chunk_dict(self):
+        pass
+
     def set_info_message(self, text, color):
         if self.infoLabel is None:
             return

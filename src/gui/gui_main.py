@@ -102,6 +102,11 @@ class MainWindow(QWidget):
         for tab in self.tabs:
             tab.set_audio_file(path)
 
+    def write_chunk_dict(self, chunkDict):
+        chunkDict.reconstruct_sequence_player()
+        for tab in self.tabs:
+            tab.load_chunk_dict()
+
 
 # The frame that displays the current decomp directory
 class DecompBar(QFrame):
