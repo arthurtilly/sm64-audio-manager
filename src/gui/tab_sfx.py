@@ -37,26 +37,64 @@ class DefineRow:
     priority: QSpinBox
     flags: QPushButton
 
+definedFlags = {
+    "SOUND_VIBRATO": "Vibrato:",
+    "SOUND_NO_VOLUME_LOSS": "No volume loss:",
+    "SOUND_NO_PRIORITY_LOSS": "No priority loss:",
+    "SOUND_CONSTANT_FREQUENCY": "Constant frequency:",
+}
+
 # Small modal window for setting flags
 # Contains checkboxes and a Save/Cancel button
 class DefineFlagsWindow(QDialog):
     def __init__(self, parent, flags):
         super().__init__(parent)
-        self.setWindowTitle("Set flags")
+        self.setWindowTitle("Set playback flags...")
         self.setModal(True)
         self.layout = QVBoxLayout()
+        self.layout.setSpacing(0)
         self.setLayout(self.layout)
 
-        label = QLabel(text=flags)
-        self.layout.addWidget(label)
+        # Flag checkboxes
+        self.flagSettingsLayout = new_widget(self.layout, QGridLayout, spacing=10)
+        grid_add_spacer(self.flagSettingsLayout, 0, 0)
+        grid_add_spacer(self.flagSettingsLayout, 0, 3)
 
-        button_box = QDialogButtonBox(
-            QDialogButtonBox.StandardButton.Save | QDialogButtonBox.StandardButton.Cancel
-        )
-        button_box.accepted.connect(self.accept)  # Save
-        button_box.rejected.connect(self.reject)  # Cancel
+        row = 0
+        print(flags)
+        for flag, desc in definedFlags.items():
+            label = QLabel(text=desc, alignment=QtCore.Qt.AlignmentFlag.AlignRight)
+            checkbox = QCheckBox()
+            checkbox.setChecked(flag in flags)
+            self.flagSettingsLayout.addWidget(label, row, 1)
+            self.flagSettingsLayout.addWidget(checkbox, row, 2)
+            fix_checkbox_palette(checkbox)
+            row += 1
 
-        self.layout.addWidget(button_box)
+        # Other flags text field
+        self.otherFlagsLayout = new_widget(self.layout, QHBoxLayout)
+        otherFlagsLabel = QLabel(text="Other flags:")
+        self.otherFlagsLayout.addWidget(otherFlagsLabel)
+        self.otherFlags = QLineEdit()
+        self.otherFlags.setText(" | ".join([flag for flag in flags if flag not in definedFlags]))
+        self.otherFlags.setMinimumWidth(150)
+        self.otherFlagsLayout.addWidget(self.otherFlags)
+
+        # Save/cancel buttons
+        self.buttonLayout = new_widget(self.layout, QHBoxLayout)
+        self.buttonLayout.addStretch(1)
+        saveButton = QPushButton(text="Save")
+        saveButton.clicked.connect(self.save_pressed)
+        self.buttonLayout.addWidget(saveButton)
+        self.buttonLayout.addStretch(1)
+        cancelButton = QPushButton(text="Cancel")
+        cancelButton.clicked.connect(self.reject)
+        self.buttonLayout.addWidget(cancelButton)
+        self.buttonLayout.addStretch(1)
+
+    def save_pressed(self):
+        flags = [flag for flag, checkbox in self.flagSettingsLayout.children() if checkbox.isChecked()]
+        self.accept()
 
 class ImportSfxTab(MainTab):
     # Create the regular page for importing sequences
@@ -171,6 +209,24 @@ class ImportSfxTab(MainTab):
                 self.defines[-1].widget.deleteLater()
             self.defines.pop()
 
+    # Parse string of flags into list
+    def parse_flags(self, flags):
+        if flags == "0":
+            self.curSoundIsDiscrete = False
+            return []
+        flagList = [flag.strip() for flag in flags.split("|")]
+        if "SOUND_DISCRETE" in flagList:
+            self.curSoundIsDiscrete = True
+            flagList.remove("SOUND_DISCRETE")
+        return flagList
+
+    # Turn list back into string
+    def construct_flags(self, flagList):
+        if self.curSoundIsDiscrete:
+            flagList.append("SOUND_DISCRETE")
+        if len(flagList) == 0:
+            return "0"
+        return " | ".join(flagList)
 
     # Add a new define row
     def add_define_row(self, name, priority, flags, banks=None, bank=None):
@@ -210,7 +266,7 @@ class ImportSfxTab(MainTab):
         defineLayout.addStretch(1)
 
         defineFlags = QPushButton(text="Set flags...")
-        defineFlags.flagsValue = flags
+        defineFlags.flagsValue = self.parse_flags(flags)
         defineFlags.clicked.connect(lambda: self.define_flags_open_window(l, defineFlags))
         defineLayout.addWidget(defineFlags)
         defineLayout.addStretch(1)
@@ -223,7 +279,7 @@ class ImportSfxTab(MainTab):
             bank=sfxListEntry.bankIDs[define.bank.currentIndex() if define.bank is not None else 0],
             id=sfxListEntry.sfxID,
             priority=define.priority.value(),
-            flags=define.flags.flagsValue
+            flags=self.construct_flags(define.flags.flagsValue)
         )
         return sfx
     
