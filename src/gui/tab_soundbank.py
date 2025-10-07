@@ -389,6 +389,7 @@ class SoundbankTab(MainTab):
     def save_sample(self):
         try:
             sampleBankPath = get_sample_bank_path(self.decomp, self.selectedSoundbank.text(0))
+            oldInstData = get_instrument_data(self.decomp, self.selectedSoundbank.text(0), self.selectedInstrument.text(0))
             instData = Instrument(None, None)
             instData.sound = Sample(None, sampleBankPath)
             instData.sound.name = os.path.splitext(self.sampleRows[0][0].currentText())[0]
@@ -408,10 +409,10 @@ class SoundbankTab(MainTab):
                     instData.normal_range_hi = validate_int(self.sampleRows[2][3].text(), "high range")
 
             else:
-                instData.release_rate = 208
+                instData.release_rate = oldInstData.release_rate
             
             # Envelopes
-            oldEnvelope = get_instrument_data(self.decomp, self.selectedSoundbank.text(0), self.selectedInstrument.text(0)).envelope
+            oldEnvelope = oldInstData.envelope
             if self.advanced or oldEnvelope is None:
                 envelope = []
                 numRows = self.envelopeRowCount.value() if self.advanced else 1

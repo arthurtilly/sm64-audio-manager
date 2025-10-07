@@ -17,18 +17,21 @@ def tuning_semitones_to_float(tuning, samplePath):
     tuning *= (sampleRate / 32000)
     return tuning
 
+def resolve_ifdef(data):
+    if type(data) is dict and "ifdef" in data:
+        if "VERSION_US" in data["ifdef"]:
+            return data["then"]
+        else:
+            return data["else"]
+    return data
+
 # Sample data for json with optional tuning
 class Sample:
     def __init__(self, data, bank):
-        # Resolve ifdefs
         self.bank = bank
         if data is None: return
-        if type(data) is dict and "ifdef" in data:
-            if "VERSION_US" in data["ifdef"]:
-                data = data["then"]
-            else:
-                data = data["else"]
-        
+        data = resolve_ifdef(data)
+
         if type(data) is dict:
             self.name = data["sample"]
             self.tuning = tuning_float_to_semitones(data["tuning"], os.path.join(self.bank, self.name+".aiff"))
@@ -43,7 +46,7 @@ class Sample:
     
 class Instrument:
     def __init__(self, data, bank):
-        self.sound_lo = self.sound_hi = self.normal_range_hi = self.normal_range_lo = self.envelope = None
+        self.sound = self.sound_lo = self.sound_hi = self.normal_range_hi = self.normal_range_lo = self.envelope = None
         self.release_rate = 208
         if data is None: return
         self.release_rate = data["release_rate"]
@@ -211,7 +214,7 @@ def delete_instrument(decomp, soundbank, instID):
     save_soundbank(decomp, soundbank, jsonData)
 
     for sample in oldSamples:
-        check_if_sample_unused(decomp, jsonData["sample_bank"], sample)
+        check_if_sample_unused(decomp, jsonData, sample)
 
 # insert new empty instrument
 def add_instrument(decomp, soundbank, index):
@@ -221,7 +224,7 @@ def add_instrument(decomp, soundbank, index):
 
 def get_sample_bank(decomp, soundbank):
     jsonData = open_soundbank(decomp, soundbank)
-    return jsonData["sample_bank"]
+    return resolve_ifdef(jsonData["sample_bank"])
 
 def get_sample_bank_path(decomp, soundbank):
     return os.path.join(decomp, "sound", "samples", get_sample_bank(decomp, soundbank))
@@ -232,12 +235,25 @@ def get_all_samples_in_bank(decomp, samplebank):
 
 # Fetch data of given instrument
 def get_instrument_data(decomp, soundbank, inst):
-    if inst == "<Empty>":
-        return Instrument(None, None)
     jsonData = open_soundbank(decomp, soundbank)
+    if not inst in jsonData["instruments"]:
+        return Instrument(None, None)
     return Instrument(jsonData["instruments"][inst], get_sample_bank_path(decomp, soundbank))
 
+def get_percussion_samples(decomp, soundbank):
+    jsonData = open_soundbank(decomp, soundbank)
+    samples = set()
+    for percussionData in jsonData["instruments"]["percussion"]:
+        sample = percussionData["sound"]
+        if type(sample) is dict:
+            samples.add(sample["sample"])
+        else:
+            samples.add(sample)
+    return samples
+
 def get_instrument_samples(decomp, soundbank, inst):
+    if inst == "percussion":
+        return get_percussion_samples(decomp, soundbank)
     data = get_instrument_data(decomp, soundbank, inst)
     samples = set()
     if data.sound is not None:
@@ -248,17 +264,18 @@ def get_instrument_samples(decomp, soundbank, inst):
         samples.add(data.sound_hi.name)
     return samples
 
-def check_if_sample_unused(decomp, sampleBank, sampleName):
+def check_if_sample_unused(decomp, jsonData, sampleName):
+    sampleBank = resolve_ifdef(jsonData["sample_bank"])
     # Check all soundbanks to see if the sample is used
     # If not, delete it
     for soundbank in scan_all_soundbanks(decomp):
-        jsonData = open_soundbank(decomp, soundbank)
-        if jsonData["sample_bank"] != sampleBank:
+        curJsonData = open_soundbank(decomp, soundbank)
+        if resolve_ifdef(curJsonData["sample_bank"]) != sampleBank:
             continue
-        for instName in jsonData["instruments"].keys():
-            samples = get_instrument_samples(decomp, soundbank, instName)
-            if sampleName in samples:
+        for instName in curJsonData["instruments"].keys():
+            if sampleName in get_instrument_samples(decomp, soundbank, instName):
                 return
+            
     samplePath = os.path.join(decomp, "sound", "samples", sampleBank, sampleName + ".aiff")
     if os.path.exists(samplePath):
         os.remove(samplePath)
@@ -275,7 +292,7 @@ def save_instrument_data(decomp, soundbank, inst, data):
 
     # If any old samples are no longer used, delete them
     for sample in oldSamples:
-        check_if_sample_unused(decomp, jsonData["sample_bank"], sample)
+        check_if_sample_unused(decomp, jsonData, sample)
 
 def get_envelope(decomp, soundbank, envelope):
     jsonData = open_soundbank(decomp, soundbank)
