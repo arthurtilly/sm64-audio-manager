@@ -22,6 +22,17 @@ bankNames = (
     "Menu",
 )
 
+bankDefaults = (
+    "action",
+    "moving",
+    "mario",
+    "general",
+    "env",
+    "obj",
+    "air",
+    "menu",
+)
+
 @dataclass
 class SfxListEntry:
     sfxChunk: SequencePlayerChunk
@@ -109,6 +120,7 @@ class ImportSfxTab(MainTab):
     def create_page(self):
         self.load_chunk_dict()
         self.selectedChunk = None
+        self.selectedChannel = None
 
         self.layout = QHBoxLayout()
         self.layout.setContentsMargins(0, 0, 0, 0)
@@ -144,7 +156,8 @@ class ImportSfxTab(MainTab):
 
         optionsLayout.addStretch(1)
 
-        self.toggleRequiresSound = (defineFrame, addEntriesLabel, soundFrame)
+        self.toggleRequiresChannel = (soundFrame, addEntriesLabel)
+        self.toggleRequiresSound = (defineFrame, self.deleteButton)
         self.toggle_all_options()
 
     
@@ -175,9 +188,9 @@ class ImportSfxTab(MainTab):
         buttonLayout.addWidget(insertAboveButton)
 
         buttonLayout.addStretch(1)
-        deleteButton = QPushButton(text="Delete")
-        deleteButton.clicked.connect(self.delete_pressed)
-        buttonLayout.addWidget(deleteButton)
+        self.deleteButton = QPushButton(text="Delete")
+        self.deleteButton.clicked.connect(self.delete_pressed)
+        buttonLayout.addWidget(self.deleteButton)
 
         buttonLayout.addStretch(1)
 
@@ -329,6 +342,7 @@ class ImportSfxTab(MainTab):
         self.update_defines()
 
     def toggle_all_options(self):
+        self.toggle_options(self.toggleRequiresChannel, self.selectedChannel is not None)
         self.toggle_options(self.toggleRequiresSound, self.selectedChunk is not None)
 
 
@@ -352,7 +366,15 @@ class ImportSfxTab(MainTab):
     # Determine default name for sound based on selected chunk
     def update_sound_name(self):
         # Strip numbers from right side of name
-        name = self.selectedChunk.name[1:]
+        if self.selectedChunk is None:
+            # Get index of self.selectedChannel in the list
+            index = self.sfxList.indexOfTopLevelItem(self.selectedChannel)
+            if index < len(bankDefaults):
+                name = f"sound_{bankDefaults[index]}_1"
+            else:
+                name = "sound_new_1"
+        else:
+            name = self.selectedChunk.name[1:]
         self.soundName.setText(get_new_name(name, self.sound_name_in_use))
 
     def init_define_rows(self, sfxListEntry=None):
@@ -384,15 +406,15 @@ class ImportSfxTab(MainTab):
         sfxListEntry = item.data(0, QtCore.Qt.ItemDataRole.UserRole)
         if sfxListEntry is None:
             self.selectedChunk = None
+            self.selectedChannel = item
             self.clear_define_rows()
-            self.toggle_all_options()
-            return
-        
-        self.selectedChunk = sfxListEntry.sfxChunk
-        # Clear all define widgets
+        else:
+            self.selectedChunk = sfxListEntry.sfxChunk
+            self.selectedChannel = item.parent()
+            self.init_define_rows(sfxListEntry)
+
         self.toggle_all_options()
         self.update_sound_name()
-        self.init_define_rows(sfxListEntry)
 
 
     # Reload the sound effect list widget
