@@ -402,7 +402,14 @@ class ImportSfxTab(MainTab):
         if len(self.sfxList.children()) > 0:
             self.sfxList.clear()
 
+        parsedChannelTables = []
         for channelEntry in self.chunkDictionary.bankTable:
+            # Only show one entry for each table, skip duplicates
+            table = channelEntry.table.name
+            if table in parsedChannelTables:
+                continue
+            parsedChannelTables.append(table)
+
             # New top level item for every channel
             bankItem = QTreeWidgetItem(self.sfxList)
             banks = channelEntry.banks
