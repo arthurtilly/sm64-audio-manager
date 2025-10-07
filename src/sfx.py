@@ -70,7 +70,10 @@ def evaluate_sound_flags(flags):
                 val |= soundFlag[0]
                 break
         else:
-            raise AudioManagerException("Invalid sound flag: %s" % flag.strip())
+            try:
+                val |= int(flag, 0)
+            except ValueError:
+                continue
     return val
 
 

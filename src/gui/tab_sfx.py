@@ -37,12 +37,12 @@ class DefineRow:
     priority: QSpinBox
     flags: QPushButton
 
-definedFlags = {
-    "SOUND_VIBRATO": "Vibrato:",
-    "SOUND_NO_VOLUME_LOSS": "No volume loss:",
-    "SOUND_NO_PRIORITY_LOSS": "No priority loss:",
-    "SOUND_CONSTANT_FREQUENCY": "Constant frequency:",
-}
+definedFlags = (
+    ("SOUND_VIBRATO", "Vibrato:"),
+    ("SOUND_NO_VOLUME_LOSS", "No volume loss:"),
+    ("SOUND_NO_PRIORITY_LOSS", "No priority loss:"),
+    ("SOUND_CONSTANT_FREQUENCY", "Constant frequency:"),
+)
 
 # Small modal window for setting flags
 # Contains checkboxes and a Save/Cancel button
@@ -54,6 +54,7 @@ class DefineFlagsWindow(QDialog):
         self.layout = QVBoxLayout()
         self.layout.setSpacing(0)
         self.setLayout(self.layout)
+        self.flags = flags[:]
 
         # Flag checkboxes
         self.flagSettingsLayout = new_widget(self.layout, QGridLayout, spacing=10)
@@ -61,11 +62,12 @@ class DefineFlagsWindow(QDialog):
         grid_add_spacer(self.flagSettingsLayout, 0, 3)
 
         row = 0
-        print(flags)
-        for flag, desc in definedFlags.items():
+        for flag, desc in definedFlags:
             label = QLabel(text=desc, alignment=QtCore.Qt.AlignmentFlag.AlignRight)
             checkbox = QCheckBox()
-            checkbox.setChecked(flag in flags)
+            if flag in self.flags:
+                checkbox.setChecked(True)
+                self.flags.remove(flag)
             self.flagSettingsLayout.addWidget(label, row, 1)
             self.flagSettingsLayout.addWidget(checkbox, row, 2)
             fix_checkbox_palette(checkbox)
@@ -76,7 +78,7 @@ class DefineFlagsWindow(QDialog):
         otherFlagsLabel = QLabel(text="Other flags:")
         self.otherFlagsLayout.addWidget(otherFlagsLabel)
         self.otherFlags = QLineEdit()
-        self.otherFlags.setText(" | ".join([flag for flag in flags if flag not in definedFlags]))
+        self.otherFlags.setText(" | ".join(self.flags))
         self.otherFlags.setMinimumWidth(150)
         self.otherFlagsLayout.addWidget(self.otherFlags)
 
@@ -93,7 +95,13 @@ class DefineFlagsWindow(QDialog):
         self.buttonLayout.addStretch(1)
 
     def save_pressed(self):
-        flags = [flag for flag, checkbox in self.flagSettingsLayout.children() if checkbox.isChecked()]
+        for i in range(self.flagSettingsLayout.rowCount()):
+            checkbox = self.flagSettingsLayout.itemAtPosition(i, 2)
+            if checkbox.widget().isChecked():
+                self.flags.append(definedFlags[i][0])
+        otherFlags = self.otherFlags.text().strip()
+        if otherFlags != "":
+            self.flags.extend([flag.strip() for flag in otherFlags.split("|")])
         self.accept()
 
 class ImportSfxTab(MainTab):
@@ -114,8 +122,8 @@ class ImportSfxTab(MainTab):
 
         self.load_sfx_list()
         self.sfxList.setCurrentItem(self.sfxList.topLevelItem(0))
-        self.sfxList.itemChanged.connect(self.sfx_item_changed)
         self.sfxList.itemSelectionChanged.connect(self.sfxlist_selection_changed)
+        self.sfxList.itemChanged.connect(self.sfx_item_changed)
         self.layout.addWidget(self.sfxList)
         self.layout.setStretchFactor(self.sfxList, 0)
 
@@ -124,12 +132,15 @@ class ImportSfxTab(MainTab):
         self.sfxList.setVerticalScrollBar(vsb)
     
         optionsLayout = new_widget(self.layout, QVBoxLayout, spacing=5)
-        optionsLayout.addStretch(1)
 
         addEntriesLabel = QLabel(text="Add/remove sound entries:")
         optionsLayout.addWidget(addEntriesLabel)
         soundFrame = self.create_sound_frame(optionsLayout)
         defineFrame = self.create_define_frame(optionsLayout)
+
+        self.infoLabel = QLabel(text="")
+        self.infoLabel.setAlignment(QtCore.Qt.AlignmentFlag.AlignCenter)
+        optionsLayout.addWidget(self.infoLabel)
 
         optionsLayout.addStretch(1)
 
@@ -290,6 +301,7 @@ class ImportSfxTab(MainTab):
         newSfxs = [self.construct_sfx_data(sfxListEntry, define) for define in self.defines]
         modify_sfx_defines(self.decomp, sfxListEntry.bankIDs, sfxListEntry.sfxID, newSfxs)
         self.init_define_rows(sfxListEntry)
+        self.set_info_message("Saved!", COLOR_GREEN)
 
     def remove_define(self, index):
         # Remove widget
@@ -361,11 +373,10 @@ class ImportSfxTab(MainTab):
 
     # Open dialog window for setting flags
     def define_flags_open_window(self, index, button):
+        self.clear_info_message()
         dialog = DefineFlagsWindow(self.mainWindow, button.flagsValue)
         if dialog.exec():
-            print("Saved")
-        else:
-            print("Cancelled")
+            button.flagsValue = dialog.flags
 
     # When a new sequence is selected, update some of the info on the right
     def sfxlist_selection_changed(self):
@@ -427,6 +438,7 @@ class ImportSfxTab(MainTab):
 
     # Delete currently selected sfx
     def delete_pressed(self):
+        self.clear_info_message()
         item = self.sfxList.currentItem()
         sfxListEntry = item.data(0, QtCore.Qt.ItemDataRole.UserRole)
 
@@ -442,6 +454,7 @@ class ImportSfxTab(MainTab):
 
     # Rename currently selected sfx
     def sfx_item_changed(self, sfxItem):
+        self.clear_info_message()
         try:
             # Validate name
             name = sfxItem.text(0)

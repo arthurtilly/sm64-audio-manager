@@ -32,7 +32,6 @@ class Sample:
         if type(data) is dict:
             self.name = data["sample"]
             self.tuning = tuning_float_to_semitones(data["tuning"], os.path.join(self.bank, self.name+".aiff"))
-            print(f"{data['tuning']} -> {self.tuning}")
         else:
             self.name = data
             self.tuning = 0
