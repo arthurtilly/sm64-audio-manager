@@ -36,7 +36,6 @@ bankDefaults = (
 @dataclass
 class SfxListEntry:
     sfxChunk: SequencePlayerChunk
-    bankIDs: list[int]
     sfxID: int
 
 
@@ -119,6 +118,7 @@ class ImportSfxTab(MainTab):
     # Create the regular page for importing sequences
     def create_page(self):
         self.load_chunk_dict()
+        init_sound_banks(self.decomp)
         self.selectedChunk = None
         self.selectedChannel = None
 
@@ -182,10 +182,12 @@ class ImportSfxTab(MainTab):
         buttonLayout.addStretch(1)
         insertBelowButton = QPushButton(text="Insert below")
         buttonLayout.addWidget(insertBelowButton)
+        insertBelowButton.clicked.connect(self.insert_below_pressed)
 
         buttonLayout.addStretch(1)
         insertAboveButton = QPushButton(text="Insert above")
         buttonLayout.addWidget(insertAboveButton)
+        insertAboveButton.clicked.connect(self.insert_above_pressed)
 
         buttonLayout.addStretch(1)
         self.deleteButton = QPushButton(text="Delete")
@@ -297,10 +299,11 @@ class ImportSfxTab(MainTab):
         self.defines.append(DefineRow(defineLayout.parentWidget(), defineBank, defineName, definePriority, defineFlags))
 
     def construct_sfx_data(self, sfxListEntry, define):
+        banks = self.selectedChannel.banks
         # Construct SFX data from the define row
         sfx = Sfx(
             define=define.name.text(),
-            bank=sfxListEntry.bankIDs[define.bank.currentIndex() if define.bank is not None else 0],
+            bank=banks[define.bank.currentIndex() if define.bank is not None else 0],
             id=sfxListEntry.sfxID,
             priority=define.priority.value(),
             flags=self.construct_flags(define.flags.flagsValue)
@@ -309,11 +312,11 @@ class ImportSfxTab(MainTab):
     
     def update_defines(self):
         item = self.sfxList.currentItem()
-        sfxListEntry = item.data(0, QtCore.Qt.ItemDataRole.UserRole)
+        channel = item.parent()
         # Construct list of new Sfx entries
-        newSfxs = [self.construct_sfx_data(sfxListEntry, define) for define in self.defines]
-        modify_sfx_defines(self.decomp, sfxListEntry.bankIDs, sfxListEntry.sfxID, newSfxs)
-        self.init_define_rows(sfxListEntry)
+        newSfxs = [self.construct_sfx_data(item.sfxListEntry, define) for define in self.defines]
+        modify_sfx_defines(self.decomp, channel.banks, item.sfxListEntry.sfxID, newSfxs)
+        self.init_define_rows(item.sfxListEntry)
         self.set_info_message("Saved!", COLOR_GREEN)
 
     def remove_define(self, index):
@@ -334,9 +337,9 @@ class ImportSfxTab(MainTab):
     
     def add_define(self):
         item = self.sfxList.currentItem()
-        sfxListEntry = item.data(0, QtCore.Qt.ItemDataRole.UserRole)
-        if len(sfxListEntry.bankIDs) > 1:
-            self.add_define_row(self.get_new_define_name(), 128, "SOUND_DISCRETE", sfxListEntry.bankIDs, sfxListEntry.bankIDs[0])
+        channel = item.parent()
+        if len(channel.banks) > 1:
+            self.add_define_row(self.get_new_define_name(), 128, "SOUND_DISCRETE", channel.banks, channel.banks[0])
         else:
             self.add_define_row(self.get_new_define_name(), 128, "SOUND_DISCRETE")
         self.update_defines()
@@ -384,12 +387,12 @@ class ImportSfxTab(MainTab):
 
         sounds_h = read_sfx_file(self.decomp)
 
-        for bank in sfxListEntry.bankIDs:
+        for bank in self.selectedChannel.banks:
             sfxs = get_sfx_defines_from_id(sounds_h, bank, sfxListEntry.sfxID)
 
             for sfx in sfxs:
-                if len(sfxListEntry.bankIDs) > 1:
-                    self.add_define_row(sfx.define, sfx.priority, sfx.flags, sfxListEntry.bankIDs, bank)
+                if len(self.selectedChannel.banks) > 1:
+                    self.add_define_row(sfx.define, sfx.priority, sfx.flags, self.selectedChannel.banks, bank)
                 else:
                     self.add_define_row(sfx.define, sfx.priority, sfx.flags)
 
@@ -403,15 +406,16 @@ class ImportSfxTab(MainTab):
     # When a new sequence is selected, update some of the info on the right
     def sfxlist_selection_changed(self):
         item = self.sfxList.currentItem()
-        sfxListEntry = item.data(0, QtCore.Qt.ItemDataRole.UserRole)
-        if sfxListEntry is None:
+        if not hasattr(item, 'sfxListEntry'):
+            # Channel selected
             self.selectedChunk = None
             self.selectedChannel = item
             self.clear_define_rows()
         else:
-            self.selectedChunk = sfxListEntry.sfxChunk
+            # Sfx selected
+            self.selectedChunk = item.sfxListEntry.sfxChunk
             self.selectedChannel = item.parent()
-            self.init_define_rows(sfxListEntry)
+            self.init_define_rows(item.sfxListEntry)
 
         self.toggle_all_options()
         self.update_sound_name()
@@ -435,6 +439,7 @@ class ImportSfxTab(MainTab):
             # New top level item for every channel
             bankItem = QTreeWidgetItem(self.sfxList)
             banks = channelEntry.banks
+            bankItem.banks = banks
 
             if len(banks) > 1:
                 text = "Channels %s" % ("/".join([str(bank) for bank in banks]))
@@ -451,7 +456,7 @@ class ImportSfxTab(MainTab):
             for i, sfx in enumerate(allSfx):
                 sfxItem = QTreeWidgetItem(bankItem)
                 sfxItem.setText(0, sfx.name[1:])
-                sfxItem.setData(0, QtCore.Qt.ItemDataRole.UserRole, SfxListEntry(sfx, banks, i))
+                sfxItem.sfxListEntry = SfxListEntry(sfx, i)
                 sfxItem.setFlags(sfxItem.flags() | QtCore.Qt.ItemFlag.ItemIsEditable)
 
         self.sfxList.blockSignals(False)
@@ -460,18 +465,16 @@ class ImportSfxTab(MainTab):
     def update_sfx_ids(self, bankItem):
         for i in range(bankItem.childCount()):
             sfxItem = bankItem.child(i)
-            sfxListEntry = sfxItem.data(0, QtCore.Qt.ItemDataRole.UserRole)
-            sfxListEntry.sfxID = i
-            sfxItem.setData(0, QtCore.Qt.ItemDataRole.UserRole, sfxListEntry)
+            sfxItem.sfxListEntry.sfxID = i
 
 
     # Delete currently selected sfx
     def delete_pressed(self):
         self.clear_info_message()
         item = self.sfxList.currentItem()
-        sfxListEntry = item.data(0, QtCore.Qt.ItemDataRole.UserRole)
+        channel = item.parent()
 
-        delete_sfx(self.decomp, self.chunkDictionary, sfxListEntry.bankIDs[0], sfxListEntry.sfxID)
+        delete_sfx(self.decomp, self.chunkDictionary, channel.banks, item.sfxListEntry.sfxID)
         self.mainWindow.write_chunk_dict(self.chunkDictionary)
 
         bankItem = item.parent()
@@ -480,6 +483,45 @@ class ImportSfxTab(MainTab):
         self.update_sfx_ids(bankItem)
         
         self.sfxlist_selection_changed()
+
+    # Create and insert a new sfx entry in the current channel at the given index
+    def insert_sfx_entry(self, index):
+        self.clear_info_message()
+        try:
+            newChunkName = self.soundName.text().strip()
+            validate_name(newChunkName, "sound name")
+            newChunk = insert_sfx(self.decomp, self.chunkDictionary, self.selectedChannel.banks, index, "." + newChunkName)
+            self.mainWindow.write_chunk_dict(self.chunkDictionary)
+
+            self.sfxList.blockSignals(True)
+            # Create new list item
+            child = QTreeWidgetItem()
+            child.setText(0, newChunkName)
+            child.sfxListEntry = SfxListEntry(newChunk, index)
+            child.setFlags(child.flags() | QtCore.Qt.ItemFlag.ItemIsEditable)
+            # Insert list item
+            self.selectedChannel.insertChild(index, child)
+            self.sfxList.blockSignals(False)
+            self.sfxList.setCurrentItem(child)
+        except AudioManagerException as e:
+            self.set_info_message("Error: " + str(e), COLOR_RED)
+            return
+
+    def insert_above_pressed(self):
+        if self.selectedChunk is None:
+            index = 0
+        else:
+            item = self.sfxList.currentItem()
+            index = self.selectedChannel.indexOfChild(item)
+        self.insert_sfx_entry(index)
+
+    def insert_below_pressed(self):
+        if self.selectedChunk is None:
+            index = self.selectedChannel.childCount()
+        else:
+            item = self.sfxList.currentItem()
+            index = self.selectedChannel.indexOfChild(item) + 1
+        self.insert_sfx_entry(index)
 
     # Rename currently selected sfx
     def sfx_item_changed(self, sfxItem):
@@ -492,13 +534,7 @@ class ImportSfxTab(MainTab):
             oldName = self.selectedChunk.name
             self.selectedChunk.name = "." + name
 
-            # Hacky way to maintain dictionary order while modifying keys by reconstructing it
-            keyOrder = list(self.chunkDictionary.dictionary.keys())
-            del self.chunkDictionary.dictionary[oldName]
-            self.chunkDictionary.dictionary[self.selectedChunk.name] = self.selectedChunk
-            keyOrder[keyOrder.index(oldName)] = self.selectedChunk.name
-            self.chunkDictionary.dictionary = {key: self.chunkDictionary.dictionary[key] for key in keyOrder}
-
+            self.chunkDictionary.change_sound_name(oldName, self.selectedChunk.name)
             self.mainWindow.write_chunk_dict(self.chunkDictionary)
 
         except AudioManagerException as e:

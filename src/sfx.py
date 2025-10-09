@@ -2,18 +2,7 @@ from misc import *
 from seq00 import *
 from dataclasses import dataclass
 
-soundBanks = (
-    "SOUND_BANK_ACTION",
-    "SOUND_BANK_MOVING",
-    "SOUND_BANK_VOICE",
-    "SOUND_BANK_GENERAL",
-    "SOUND_BANK_ENV",
-    "SOUND_BANK_OBJ",
-    "SOUND_BANK_AIR",
-    "SOUND_BANK_MENU",
-    "SOUND_BANK_GENERAL2",
-    "SOUND_BANK_OBJ2",
-)
+soundBanks = None
 
 soundFlags = (
     (0x1000000, "SOUND_NO_VOLUME_LOSS"),
@@ -33,6 +22,9 @@ class Sfx:
     priority: int
     flags: str
 
+def init_sound_banks(decomp):
+    global soundBanks
+    soundBanks = [bank for bank, _ in load_table(os.path.join(decomp, "include", "sounds.h"), "enum SoundBank")]
 
 # Read sounds.h file into a list of lines
 def read_sfx_file(decomp):
@@ -79,12 +71,14 @@ def evaluate_sound_flags(flags):
 
 # Turn a Sfx object into a sound define string
 def get_define_string(sfx):
+    global soundBanks
     val = (sfx.bank << 28) | (sfx.id << 16) | (sfx.priority << 8) | evaluate_sound_flags(sfx.flags)
     return f"#define {sfx.define:<40} /* 0x{val:08X} */ SOUND_ARG_LOAD({soundBanks[sfx.bank]+',':<20} 0x{sfx.id:02X}, 0x{sfx.priority:02X}, {sfx.flags})"
 
 
 # Gets all sound effects with the given bank number and ID
 def get_sfx_defines_from_id(lines, bankNo, id):
+    global soundBanks
     defines = []
 
     for line in lines:
@@ -99,6 +93,7 @@ def get_sfx_defines_from_id(lines, bankNo, id):
 
 # Deletes all sound effects with the given bank number and ID. Returns number of entries deleted.
 def delete_sfx_defines_with_id(lines, bankNo, id):
+    global soundBanks
     count = 0
     for line in reversed(lines):
         if sounds_h_line_is_define(line):
@@ -113,6 +108,7 @@ def delete_sfx_defines_with_id(lines, bankNo, id):
 
 # Adds a new sound define and attempts to find the most appropriate place to put it
 def add_sfx_define(lines, sfx):
+    global soundBanks
     # Find nearest define in the same bank
     # Line number, ID
     nearestDefinePrev = [None, -1]
@@ -146,21 +142,23 @@ def add_sfx_define(lines, sfx):
     
     lines.insert(lineNo, get_define_string(sfx))
 
+def shift_sfx_ids(lines, banks, id, shift):
+    global soundBanks
+    for i, line in enumerate(lines):
+        if sounds_h_line_is_define(line):
+            params = get_params_from_sounds_h_define(line)
+            if params[1] >= id:
+                for bank in banks:
+                    if params[0] == soundBanks[bank]:
+                        defineName = line.split(" ")[1]
+                        lines[i] = get_define_string(Sfx(defineName, bank, params[1] + 1, params[2], params[3]))
+                        break
 
 # Deletes defines in given banks with ID, and moves the ID of define after it down by one
 def fully_delete_sfx_define(lines, banks, id):
     for bank in banks:
         delete_sfx_defines_with_id(lines, bank, id)
-
-    for i, line in enumerate(lines):
-        if sounds_h_line_is_define(line):
-            params = get_params_from_sounds_h_define(line)
-            if params[1] > id:
-                for bank in banks:
-                    if params[0] == soundBanks[bank]:
-                        defineName = line.split(" ")[1]
-                        lines[i] = get_define_string(Sfx(defineName, bank, params[1] - 1, params[2], params[3]))
-                        break
+    shift_sfx_ids(lines, banks, id, -1)
 
 # Deletes sound effects and re-adds the ones in the given list
 def modify_sfx_defines(decomp, banks, id, newSfxs):
@@ -173,54 +171,22 @@ def modify_sfx_defines(decomp, banks, id, newSfxs):
 
     write_sfx_file(decomp, sounds_h)
 
-
-def delete_sfx(decomp, chunkDict, bankNo, id):
+# Delete specific sound effect using ID
+# Also deletes and shifts sfx defines
+def delete_sfx(decomp, chunkDict, banks, id):
     sounds_h = read_sfx_file(decomp)
-    banks = chunkDict.bankTable[bankNo].banks
 
     fully_delete_sfx_define(sounds_h, banks, id)
-    chunkDict.delete_sound_ref(bankNo, id)
+    chunkDict.delete_sound_ref(banks[0], id)
 
     write_sfx_file(decomp, sounds_h)
 
+# Insert a new empty sound effect
+# Does not create new defines, but shifts existing ones forward
+def insert_sfx(decomp, chunkDict, banks, id, name):
+    sounds_h = read_sfx_file(decomp)
+    shift_sfx_ids(sounds_h, banks, id, 1)
+    newChunk = chunkDict.insert_sound_ref(banks[0], id, name)
 
-def add_sfx_from_instrument(
-    decomp, # Path to decomp folder
-    replace, # Whether to replace existing sfx
-    instBankNo, instNo, # Inst bank and number of sample to use
-    sfxs): # List of new Sfx objects - must have same bank and ID; define, priority, and flags can differ
-                                       # if replace is False, ID can be missing and will be auto-assigned
-    # If replace:
-    #   Add new chunk and layer
-    #   Delete existing chunk recursively
-    #   Delete old sound define(s)
-
-    #   Modify channel table
-    #   Add new sound define(s)
-
-    # If not replace:
-    #   Determine new free ID
-    #   Add new chunk and layer
-
-    #   Append channel table
-    #   Add new sound define(s)
-    pass
-
-
-def add_sfx(
-    decomp, # Path to decomp folder
-    replace, # Whether to replace existing sfx - if yes, bank ID of sequence to replace
-    inputAiff, # Path of input AIFF file
-    loop, loopBegin, loopEnd, # Loop data
-    sampleName, # Name of sample to use
-    instBankNo, # Which instrument bank to put the sample in
-    soundDefine, # Name of sound define
-    soundBank, # Sound bank / channel to use
-    flags):
-    # Step 1: Import sample
-
-    # Step 2: Add sample to instrument bank
-
-    # Step 3: Add sfx
-    add_sfx_from_instrument(decomp, replace, instBankNo, 0, soundBank, flags)
-    pass
+    write_sfx_file(decomp, sounds_h)
+    return newChunk

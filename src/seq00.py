@@ -32,7 +32,7 @@ referenceCommands = (
     ("layer_call",       0,        True,        CHUNK_TYPE_LAYER,         CHUNK_TYPE_LAYER),
     ("layer_end",        0,        False,       CHUNK_TYPE_LAYER,         None),
 
-    ("envelope_goto",    1,         False,       CHUNK_TYPE_ENVELOPE,      None),
+    ("envelope_goto",    1,        False,       CHUNK_TYPE_ENVELOPE,      None),
     ("envelope_hang",    0,        False,       CHUNK_TYPE_ENVELOPE,      None),
 )
 
@@ -370,16 +370,29 @@ class ChunkDictionary:
 
 
     # Red coin and secret miniseqs have hardcoded IDs to determine the pitch to play at
-    def fix_hardcoded_ids_when_deleting(self, chunk):
+    def shift_hardcoded_ids_of_chunk(self, chunk, shift):
         # Scan the chunk until a chan_subtract is found
         for i, line in enumerate(chunk.lines):
             if type(line) == str and line.startswith("chan_subtract"):
                 # Get the subtracted value
                 subtractedValue = int(line.split(" ")[1].strip(), 0)
-                chunk.lines[i] = f"chan_subtract 0x{subtractedValue - 1:02X}"
+                chunk.lines[i] = f"chan_subtract 0x{subtractedValue + shift:02X}"
 
+    def fix_hardcoded_ids(self, tableChunk, soundID, shift):
+        i = 0
+        redcoins = False
+        secrets = False
+        for line in tableChunk.lines:
+            if line_is_command(line, "sound_ref"):
+                i += 1
+                if i > soundID:
+                    if not redcoins and line.reference.name == ".sound_menu_collect_red_coin":
+                        redcoins = True
+                        self.shift_hardcoded_ids_of_chunk(line.reference, shift)
+                    elif not secrets and line.reference.name == ".sound_menu_collect_secret":
+                        secrets = True
+                        self.shift_hardcoded_ids_of_chunk(line.reference, shift)
 
-    
     # Delete a sound reference from a channel table
     def delete_sound_ref(self, channelID, soundID):
         tableChunk = self.bankTable[channelID].table
@@ -387,9 +400,6 @@ class ChunkDictionary:
 
         oldChunk.parents.remove(tableChunk)
         tableChunk.children.remove(oldChunk)
-
-        redcoins = False
-        secrets = False
 
         # Delete line of channel table that contained the sound reference
         i = 0
@@ -399,18 +409,36 @@ class ChunkDictionary:
                     tableChunk.lines.remove(line)
                 i += 1
 
-                if channelID == 7 and i > soundID:
-                    if not redcoins and line.reference.name == ".sound_menu_collect_red_coin":
-                        redcoins = True
-                        self.fix_hardcoded_ids_when_deleting(line.reference)
-                    elif not secrets and line.reference.name == ".sound_menu_collect_secret":
-                        secrets = True
-                        self.fix_hardcoded_ids_when_deleting(line.reference)
-            
-
+        self.fix_hardcoded_ids(tableChunk, soundID, -1)
         # If chunk has no references left, delete it
         if len(oldChunk.parents) == 0:
             self.delete_chunk(oldChunk)
+
+    def insert_sound_ref(self, channelID, soundID, chunkName):
+        tableChunk = self.bankTable[channelID].table
+
+        newChunk = SequencePlayerChunk(chunkName, CHUNK_TYPE_CHANNEL)
+        newChunk.add_line("chan_end")
+        self.dictionary[chunkName] = newChunk
+
+        # Insert new sound_ref line into channel table
+        newLine = ReferenceCommand(get_command_id("sound_ref"), None, newChunk)
+        tableChunk.lines.insert(soundID, newLine)
+
+        self.fix_hardcoded_ids(tableChunk, soundID, 1)
+        return newChunk
+
+    def change_sound_name(self, oldName, newName):
+        if newName in self.dictionary:
+            raise AudioManagerException(f"Sound with the name '{newName}' already exists!")
+        selectedChunk = self.dictionary[oldName]
+        selectedChunk.name = newName
+
+        keyOrder = list(self.dictionary.keys())
+        del self.dictionary[oldName]
+        self.dictionary[newName] = selectedChunk
+        keyOrder[keyOrder.index(oldName)] = newName
+        self.dictionary = {key: self.dictionary[key] for key in keyOrder}
 
     # Shift all instruments with an ID greater than inst
     def update_instruments(self, bank, inst, shift):
