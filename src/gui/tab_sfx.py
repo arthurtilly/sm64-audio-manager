@@ -479,8 +479,7 @@ class ImportSfxTab(MainTab):
 
         delete_sfx(self.decomp, self.chunkDictionary, channel.banks, item.sfxListEntry.sfxID)
         self.mainWindow.write_chunk_dict(self.chunkDictionary)
-
-        channel = item.parent()
+        
         # Delete the item from the list
         channel.removeChild(item)
         self.update_sfx_ids(channel)

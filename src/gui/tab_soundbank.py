@@ -300,7 +300,7 @@ class SoundbankTab(MainTab):
         for name, chunk in self.chunkDictionary.dictionary.items():
             if chunk.type != CHUNK_TYPE_CHANNEL:
                 continue
-            for instrument in chunk.instruments:
+            for instrument in chunk.get_instruments():
                 if instrument[0] == bankIndex and instrument[1] == instIndex:
                     refs.append(name[1:])
         return refs

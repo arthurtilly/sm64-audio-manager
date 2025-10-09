@@ -101,7 +101,6 @@ class SequencePlayerChunk:
         self.parents = [] # All chunks that reference this chunk
         self.lines = [] # Lines of commands, either strings or reference commands
         self.followingChunk = None
-        self.instruments = None # Tuples of bank/instrument pairs used by this and child layers
 
     def __repr__(self):
         return "Chunk " + self.name
@@ -170,19 +169,17 @@ class SequencePlayerChunk:
         # Build instrument list for channels only to know which are referenced
         if (self.type != CHUNK_TYPE_CHANNEL):
             return
-        self.instruments = []
+        
+    def get_instruments(self):
+        if self.type != CHUNK_TYPE_CHANNEL and self.type != CHUNK_TYPE_LAYER:
+            return []
+        instruments = set()
         for line in self.lines:
             if type(line) == InstrCommand:
-                self.instruments.append((line.bank, line.instrument))
-            elif type(line) == ReferenceCommand:
-                layer = line.reference
-                if layer is None:
-                    continue
-                for layerline in layer.lines:
-                    if type(layerline) == InstrCommand:
-                        self.instruments.append((layerline.bank, layerline.instrument))
-        # Remove duplicates
-        self.instruments = list(set(self.instruments))
+                instruments.add((line.bank, line.instrument))
+            elif type(line) == ReferenceCommand and line.commandID == get_command_id("chan_setlayer"):
+                instruments.update(line.reference.get_instruments())
+        return list(instruments)
 
 @dataclass
 class ChannelEntry:
@@ -442,22 +439,13 @@ class ChunkDictionary:
 
     # Shift all instruments with an ID greater than inst
     def update_instruments(self, bank, inst, shift):
-        for name, chunk in self.dictionary.items():
+        for _, chunk in self.dictionary.items():
             if chunk.type != CHUNK_TYPE_CHANNEL and chunk.type != CHUNK_TYPE_LAYER:
-                continue
-            if chunk.instruments is None:
                 continue
             for line in chunk.lines:
                 if type(line) == InstrCommand:
                     if line.bank == bank and line.instrument >= inst:
                         line.instrument += shift
-            newInsts = []
-            for instrument in chunk.instruments:
-                if instrument[0] == bank and instrument[1] >= inst:
-                    newInsts.append((instrument[0], instrument[1] + shift))
-                else:
-                    newInsts.append(instrument)
-            chunk.instruments = newInsts
     
     def delete_instrument(self, bank, inst):
         self.update_instruments(bank, inst, -1)

@@ -154,7 +154,7 @@ def shift_sfx_ids(lines, banks, id, shift):
                 for bank in banks:
                     if params[0] == soundBanks[bank]:
                         defineName = line.split(" ")[1]
-                        lines[i] = get_define_string(Sfx(defineName, bank, params[1] + 1, params[2], params[3]))
+                        lines[i] = get_define_string(Sfx(defineName, bank, params[1] + shift, params[2], params[3]))
                         break
 
 # Deletes defines in given banks with ID, and moves the ID of define after it down by one
