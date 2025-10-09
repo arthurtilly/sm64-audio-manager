@@ -8,6 +8,7 @@ import tempfile
 
 from gui_misc import *
 from gui_sample_import import *
+from gui_dynamic_table import *
 append_parent_dir()
 from misc import *
 from soundbank import *
@@ -69,7 +70,9 @@ class SoundbankTab(MainTab):
         optionsLayout.addStretch(1)
         referenceLabel = QLabel(text="Referenced in sound effects:")
         optionsLayout.addWidget(referenceLabel)
-        referenceFrame = self.create_references_frame(optionsLayout)
+        noRowsLabel = QLabel(text="No instrument selected...", alignment=QtCore.Qt.AlignmentFlag.AlignCenter)
+        self.referenceFrame = GuiDynamicTable(optionsLayout, self.add_reference, noRowsLabel)
+        self.referenceFrame.setFrameShape(QFrame.Shape.StyledPanel)
         optionsLayout.addStretch(1)
 
         self.infoLabel = QLabel(text="")
@@ -78,8 +81,8 @@ class SoundbankTab(MainTab):
         optionsLayout.addStretch(1)
 
         self.toggleRequiresBank = (instrumentFrame,addEntriesLabel,self.soundFrameWidgets.soundFrame)
-        self.toggleRequiresBankAndInstrument = (referenceLabel,referenceFrame,sampleLabel,self.sampleFrame)
-        self.hideOnMusicBank = (referenceLabel, referenceFrame)
+        self.toggleRequiresBankAndInstrument = (referenceLabel,self.referenceFrame,sampleLabel,self.sampleFrame)
+        self.hideOnMusicBank = (referenceLabel, self.referenceFrame)
         self.toggle_all_options()
 
     def create_instrument_frame(self, layout):
@@ -266,18 +269,6 @@ class SoundbankTab(MainTab):
         saveButton.clicked.connect(self.save_sample)
         releaseRateLayout.addStretch(1)
 
-    def create_references_frame(self, layout):
-        referenceFrame = QFrame()
-        referenceLayout = QVBoxLayout(referenceFrame)
-        layout.addWidget(referenceFrame)
-        referenceFrame.setFrameShape(QFrame.Shape.StyledPanel)
-        referenceFrame.setLayout(referenceLayout)
-        
-        self.references = referenceLayout
-        self.add_reference("No instrument selected...")
-
-        return referenceFrame
-
     def toggle_all_options(self):
         self.toggle_options(self.toggleRequiresBank, self.selectedSoundbank is not None)
         self.toggle_options(self.toggleRequiresBankAndInstrument, self.selectedInstrument is not None)
@@ -286,14 +277,6 @@ class SoundbankTab(MainTab):
             sfxBankSelected = soundbank_get_sfx_index(self.decomp, self.selectedSoundbank.text(0)) != -1
             for widget in self.hideOnMusicBank:
                 widget.setVisible(sfxBankSelected)
-
-    # Deletes all widgets in self.references
-    def clear_references(self):
-        # Delete all contained widgets
-        while self.references.layout().count():
-            widget = self.references.layout().itemAt(0).widget()
-            self.references.layout().removeWidget(widget)
-            widget.deleteLater()
 
     def get_references(self, bankIndex, instIndex):
         refs = []
@@ -305,32 +288,33 @@ class SoundbankTab(MainTab):
                     refs.append(name[1:])
         return refs
 
-    def add_reference(self, text, align=QtCore.Qt.AlignmentFlag.AlignCenter):
-        referenceLabel = QLabel(text=text, alignment=align)
-        self.references.layout().addWidget(referenceLabel)
+    def add_reference(self, grid, text, index):
+        referenceLabel = QLabel(text=text)
+        grid.addWidget(referenceLabel, index, 0)
+        return []
 
     # Return value is if deletion is possible
     def update_references(self):
-        self.clear_references()
         if self.selectedInstrument is None:
-            self.add_reference("No instrument selected...")
+            self.referenceFrame.clear_rows()
+            self.referenceFrame.noRowsWidget.setText("No instrument selected...")
             return False
         bankIndex = soundbank_get_sfx_index(self.decomp, self.selectedSoundbank.text(0))
         if bankIndex == -1:
+            self.referenceFrame.clear_rows()
             return True
 
         instIndex = self.selectedSoundbank.indexOfChild(self.selectedInstrument)
         refs = self.get_references(bankIndex, instIndex)
-        if len(refs) == 0:
-            self.add_reference("This instrument is unused.")
-            return True
         if len(refs) >= 12:
             numExtraRefs = len(refs) - 10
             refs = refs[-10:]
             refs.append(f"...and {numExtraRefs} more")
-        for ref in refs:
-            self.add_reference(ref, align=QtCore.Qt.AlignmentFlag.AlignLeft)
-        return False
+
+        self.referenceFrame.noRowsWidget.setText("This instrument is unused...")
+        self.referenceFrame.create_rows(refs)
+
+        return len(refs) == 0
     
     # advanced = None: determine from instrument data
     # otherwise True or False
