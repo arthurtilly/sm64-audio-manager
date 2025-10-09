@@ -311,24 +311,28 @@ class ImportSfxTab(MainTab):
         return sfx
     
     def update_defines(self):
-        item = self.sfxList.currentItem()
-        channel = item.parent()
-        # Construct list of new Sfx entries
-        newSfxs = [self.construct_sfx_data(item.sfxListEntry, define) for define in self.defines]
-        modify_sfx_defines(self.decomp, channel.banks, item.sfxListEntry.sfxID, newSfxs)
-        self.init_define_rows(item.sfxListEntry)
-        self.set_info_message("Saved!", COLOR_GREEN)
+        try:
+            item = self.sfxList.currentItem()
+            channel = item.parent()
+            # Construct list of new Sfx entries
+            newSfxs = [self.construct_sfx_data(item.sfxListEntry, define) for define in self.defines]
+            modify_sfx_defines(self.decomp, channel.banks, item.sfxListEntry.sfxID, newSfxs)
+            self.init_define_rows(item.sfxListEntry)
+            self.set_info_message("Saved!", COLOR_GREEN)
+        except AudioManagerException as e:
+            self.set_info_message("Error: " + str(e), COLOR_RED)
 
     def remove_define(self, index):
         # Remove widget
         self.defineEntryLayout.removeWidget(self.defines[index].widget)
         self.defines.pop(index)
-        self.update_defines()
 
     def define_name_in_use(self, name):
         for define in self.defines:
             if define.name.text() == name:
                 return True
+        if name in get_all_sfx_define_names(read_sfx_file(self.decomp)):
+            return True
         return False
 
     # Determine default name for define
@@ -342,7 +346,6 @@ class ImportSfxTab(MainTab):
             self.add_define_row(self.get_new_define_name(), 128, "SOUND_DISCRETE", channel.banks, channel.banks[0])
         else:
             self.add_define_row(self.get_new_define_name(), 128, "SOUND_DISCRETE")
-        self.update_defines()
 
     def toggle_all_options(self):
         self.toggle_options(self.toggleRequiresChannel, self.selectedChannel is not None)
@@ -477,11 +480,11 @@ class ImportSfxTab(MainTab):
         delete_sfx(self.decomp, self.chunkDictionary, channel.banks, item.sfxListEntry.sfxID)
         self.mainWindow.write_chunk_dict(self.chunkDictionary)
 
-        bankItem = item.parent()
+        channel = item.parent()
         # Delete the item from the list
-        bankItem.removeChild(item)
-        self.update_sfx_ids(bankItem)
-        
+        channel.removeChild(item)
+        self.update_sfx_ids(channel)
+
         self.sfxlist_selection_changed()
 
     # Create and insert a new sfx entry in the current channel at the given index
@@ -501,6 +504,7 @@ class ImportSfxTab(MainTab):
             child.setFlags(child.flags() | QtCore.Qt.ItemFlag.ItemIsEditable)
             # Insert list item
             self.selectedChannel.insertChild(index, child)
+            self.update_sfx_ids(self.selectedChannel)
             self.sfxList.blockSignals(False)
             self.sfxList.setCurrentItem(child)
         except AudioManagerException as e:

@@ -75,20 +75,25 @@ def get_define_string(sfx):
     val = (sfx.bank << 28) | (sfx.id << 16) | (sfx.priority << 8) | evaluate_sound_flags(sfx.flags)
     return f"#define {sfx.define:<40} /* 0x{val:08X} */ SOUND_ARG_LOAD({soundBanks[sfx.bank]+',':<20} 0x{sfx.id:02X}, 0x{sfx.priority:02X}, {sfx.flags})"
 
+# Get full list of defines
+def get_all_sfx_defines(lines):
+    global soundBanks
+    for line in lines:
+        if sounds_h_line_is_define(line):
+            params = get_params_from_sounds_h_define(line)
+            yield Sfx(line.split(" ")[1], soundBanks.index(params[0]), params[1], params[2], params[3])
+
+# Get just the names of defines
+def get_all_sfx_define_names(lines):
+    for sfx in get_all_sfx_defines(lines):
+        yield sfx.define
 
 # Gets all sound effects with the given bank number and ID
 def get_sfx_defines_from_id(lines, bankNo, id):
     global soundBanks
-    defines = []
-
-    for line in lines:
-        if sounds_h_line_is_define(line):
-            params = get_params_from_sounds_h_define(line)
-            if params[1] == id and params[0] == soundBanks[bankNo]:
-                defineName = line.split(" ")[1]
-                defines.append(Sfx(defineName, bankNo, id, params[2], params[3]))
-
-    return defines
+    for sfx in get_all_sfx_defines(lines):
+        if sfx.bank == bankNo and sfx.id == id:
+            yield sfx
 
 
 # Deletes all sound effects with the given bank number and ID. Returns number of entries deleted.
@@ -109,37 +114,35 @@ def delete_sfx_defines_with_id(lines, bankNo, id):
 # Adds a new sound define and attempts to find the most appropriate place to put it
 def add_sfx_define(lines, sfx):
     global soundBanks
-    # Find nearest define in the same bank
-    # Line number, ID
-    nearestDefinePrev = [None, -1]
-    nearestDefineNext = [None, 256]
+    # Find nearest define
+    # Line number, (Bank * 1000 + ID)
+    nearestDefinePrev = [None, -999999999]
+    nearestDefineNext = [None, 999999999]
+
+    targetVal = sfx.bank * 1000 + sfx.id
 
     # This algorithm is not the best
     for i, line in enumerate(lines):
         if sounds_h_line_is_define(line):
             params = get_params_from_sounds_h_define(line)
-            if params[0] == soundBanks[sfx.bank]:
-                if params[1] <= sfx.id and params[1] >= nearestDefinePrev[1]:
-                    nearestDefinePrev = [i, params[1]]
-                elif params[1] > sfx.id and params[1] < nearestDefineNext[1]:
-                    nearestDefineNext = [i, params[1]]
-    
+            curVal = soundBanks.index(params[0]) * 1000 + params[1]
+
+            if curVal <= targetVal and curVal >= nearestDefinePrev[1]:
+                nearestDefinePrev = [i, curVal]
+            elif curVal > targetVal and curVal < nearestDefineNext[1]:
+                nearestDefineNext = [i, curVal]
+
     # Find which line to insert the new define at by which one is closer
     lineNo = None
-    prevDist = sfx.id - nearestDefinePrev[1]
-    nextDist = nearestDefineNext[1] - sfx.id
+    prevDist = targetVal - nearestDefinePrev[1]
+    nextDist = nearestDefineNext[1] - targetVal
 
-    if prevDist < nextDist and nearestDefinePrev[0] != None:
+    if prevDist < nextDist or nearestDefineNext[0] is None:
         lineNo = nearestDefinePrev[0] + 1
-    elif nearestDefineNext[0] != None:
+    elif nearestDefineNext[0] is not None:
         lineNo = nearestDefineNext[0]
 
-    if lineNo is None:
-        raise AudioManagerException(f"Error: No defines found in bank {sfx.bank:d}")
-
-
     # Insert define
-    
     lines.insert(lineNo, get_define_string(sfx))
 
 def shift_sfx_ids(lines, banks, id, shift):
@@ -166,7 +169,10 @@ def modify_sfx_defines(decomp, banks, id, newSfxs):
     for bank in banks:
         delete_sfx_defines_with_id(sounds_h, bank, id)
 
+    existingDefines = get_all_sfx_define_names(sounds_h)
     for sfx in newSfxs:
+        if sfx.define in existingDefines:
+            raise AudioManagerException(f"Define name '{sfx.define}' already in use!")
         add_sfx_define(sounds_h, sfx)
 
     write_sfx_file(decomp, sounds_h)
