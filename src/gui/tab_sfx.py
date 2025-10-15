@@ -6,6 +6,7 @@ from PyQt6 import QtCore
 
 
 from gui_misc import *
+from gui_dynamic_table import *
 append_parent_dir()
 from misc import *
 from sfx import *
@@ -37,15 +38,6 @@ bankDefaults = (
 class SfxListEntry:
     sfxChunk: SequencePlayerChunk
     sfxID: int
-
-
-@dataclass
-class DefineRow:
-    widget: QWidget
-    bank: QComboBox
-    name: QLineEdit
-    priority: QSpinBox
-    flags: QPushButton
 
 definedFlags = (
     ("SOUND_VIBRATO", "Vibrato:"),
@@ -208,13 +200,12 @@ class ImportSfxTab(MainTab):
         self.defineLayout.addWidget(QLabel(text="Sound defines:"))
         defineFrame.setFrameShape(QFrame.Shape.StyledPanel)
 
-        self.defines = []
-        self.defineEntryLayout = new_widget(self.defineLayout, QVBoxLayout)
+        self.defineTable = GuiDynamicTable(self.defineLayout, self.add_define_row, noRowsWidget = QLabel(text="This sound has no defines...", alignment=QtCore.Qt.AlignmentFlag.AlignCenter), spacers=[])
 
         # Two buttons for adding and saving
         buttonLayout = new_widget(self.defineLayout, QHBoxLayout)
         addDefineButton = QPushButton(text="Add...")
-        addDefineButton.clicked.connect(self.add_define)
+        addDefineButton.clicked.connect(self.add_new_define)
         buttonLayout.addStretch(1)
         buttonLayout.addWidget(addDefineButton)
 
@@ -225,15 +216,6 @@ class ImportSfxTab(MainTab):
         buttonLayout.addStretch(1)
 
         return defineFrame
-
-
-    # Clear all define rows
-    def clear_define_rows(self):
-        while len(self.defines) > 0:
-            if self.defines[-1].widget is not None:
-                self.defineEntryLayout.removeWidget(self.defines[-1].widget)
-                self.defines[-1].widget.deleteLater()
-            self.defines.pop()
 
     # Parse string of flags into list
     def parse_flags(self, flags):
@@ -253,60 +235,79 @@ class ImportSfxTab(MainTab):
         if len(flagList) == 0:
             return "0"
         return " | ".join(flagList)
+    
+    def update_define_data(self, index):
+        curRow = self.defineTable.rows[index]
+        self.currentDefines[index][0] = curRow[0].text()
+        self.currentDefines[index][1] = curRow[1].value()
+        self.currentDefines[index][2] = self.construct_flags(curRow[2].flagsValue)
+
+        bankIndex = 0 if curRow[3] is None else curRow[3].currentIndex()
+        self.currentDefines[index][4] = self.currentDefines[index][3][bankIndex]
 
     # Add a new define row
-    def add_define_row(self, name, priority, flags, banks=None, bank=None):
-        defineLayout = new_widget(self.defineEntryLayout, QHBoxLayout)
-        defineLayout.setContentsMargins(0, 0, 0, 0)
-        defineLayout.addStretch(1)
+    def add_define_row(self, grid, data, index):
+        name = data[0]
+        priority = data[1]
+        flags = data[2]
+        banks = data[3]
+        bank = data[4]
+
+        if len(banks) > 1:
+            offset = 1
+        else:
+            offset = 0
 
         trashButton = QPushButton(text="X")
-        l = len(self.defines)
-        trashButton.clicked.connect(lambda: self.remove_define(l))
+        trashButton.clicked.connect(lambda: self.delete_define_row(index))
         trashButton.setFixedSize(25, 25)
-        defineLayout.addWidget(trashButton)
+        grid.addWidget(trashButton, index, 1)
 
         defineBank = None
-        if banks is not None:
+        if offset:
             defineBank = QComboBox()
             defineBank.addItems(["Chn. "+str(bank) for bank in banks])
             defineBank.setCurrentIndex(banks.index(bank) if bank is not None else 0)
-            defineLayout.addWidget(defineBank)
-            defineLayout.addStretch(1)
+            defineBank.currentIndexChanged.connect(lambda: self.update_define_data(index))
+            grid.addWidget(defineBank, index, 2)
 
         defineName = QLineEdit()
-        defineLayout.addWidget(defineName)
+        grid.addWidget(defineName, index, 2+offset)
         defineName.setFixedWidth(200)
-        defineLayout.addStretch(1)
         defineName.setText(name)
+        defineName.textChanged.connect(lambda: self.update_define_data(index))
 
-        defineLayout.addWidget(QLabel(text="Priority:"))
+        grid.addWidget(QLabel(text="Priority:"), index, 4+offset)
 
         definePriority = QSpinBox()
         definePriority.setAlignment(QtCore.Qt.AlignmentFlag.AlignRight)
-        defineLayout.addWidget(definePriority)
+        grid.addWidget(definePriority, index, 5+offset)
         definePriority.setMinimum(0)
         definePriority.setMaximum(255)
         definePriority.setValue(priority)
         definePriority.setFixedWidth(50)
-        defineLayout.addStretch(1)
+        definePriority.valueChanged.connect(lambda: self.update_define_data(index))
 
         defineFlags = QPushButton(text="Set flags...")
         defineFlags.flagsValue = self.parse_flags(flags)
-        defineFlags.clicked.connect(lambda: self.define_flags_open_window(l, defineFlags))
-        defineLayout.addWidget(defineFlags)
-        defineLayout.addStretch(1)
-        self.defines.append(DefineRow(defineLayout.parentWidget(), defineBank, defineName, definePriority, defineFlags))
+        defineFlags.clicked.connect(lambda: self.define_flags_open_window(index, defineFlags))
+        grid.addWidget(defineFlags, index, 7+offset)
+
+        return [defineName, definePriority, defineFlags, defineBank]
+
+    def delete_define_row(self, index):
+        self.currentDefines.pop(index)
+        self.defineTable.create_rows(self.currentDefines)
 
     def construct_sfx_data(self, sfxListEntry, define):
-        banks = self.selectedChannel.banks
+        validate_name(define[0], "define name")
         # Construct SFX data from the define row
         sfx = Sfx(
-            define=define.name.text(),
-            bank=banks[define.bank.currentIndex() if define.bank is not None else 0],
+            define=define[0],
+            bank=define[4],
             id=sfxListEntry.sfxID,
-            priority=define.priority.value(),
-            flags=self.construct_flags(define.flags.flagsValue)
+            priority=define[1],
+            flags=define[2]
         )
         return sfx
     
@@ -315,21 +316,17 @@ class ImportSfxTab(MainTab):
             item = self.sfxList.currentItem()
             channel = item.parent()
             # Construct list of new Sfx entries
-            newSfxs = [self.construct_sfx_data(item.sfxListEntry, define) for define in self.defines]
+            newSfxs = [self.construct_sfx_data(item.sfxListEntry, define) for define in self.currentDefines]
             modify_sfx_defines(self.decomp, channel.banks, item.sfxListEntry.sfxID, newSfxs)
             self.init_define_rows(item.sfxListEntry)
             self.set_info_message("Saved!", COLOR_GREEN)
+            pass
         except AudioManagerException as e:
             self.set_info_message("Error: " + str(e), COLOR_RED)
 
-    def remove_define(self, index):
-        # Remove widget
-        self.defineEntryLayout.removeWidget(self.defines[index].widget)
-        self.defines.pop(index)
-
     def define_name_in_use(self, name):
-        for define in self.defines:
-            if define.name.text() == name:
+        for row in self.defineTable.rows:
+            if row[0].text() == name:
                 return True
         if name in get_all_sfx_define_names(read_sfx_file(self.decomp)):
             return True
@@ -339,13 +336,11 @@ class ImportSfxTab(MainTab):
     def get_new_define_name(self):
         return get_new_name(self.selectedChunk.name[1:].upper(), self.define_name_in_use, "SOUND_")
     
-    def add_define(self):
+    def add_new_define(self):
         item = self.sfxList.currentItem()
         channel = item.parent()
-        if len(channel.banks) > 1:
-            self.add_define_row(self.get_new_define_name(), 128, "SOUND_DISCRETE", channel.banks, channel.banks[0])
-        else:
-            self.add_define_row(self.get_new_define_name(), 128, "SOUND_DISCRETE")
+        self.currentDefines.append([self.get_new_define_name(), 128, "0", channel.banks, channel.banks[0]])
+        self.defineTable.append_new_row(self.currentDefines[-1])
 
     def toggle_all_options(self):
         self.toggle_options(self.toggleRequiresChannel, self.selectedChannel is not None)
@@ -384,20 +379,24 @@ class ImportSfxTab(MainTab):
         self.soundName.setText(get_new_name(name, self.sound_name_in_use))
 
     def init_define_rows(self, sfxListEntry=None):
-        self.clear_define_rows()
         if sfxListEntry is None:
+            self.defineTable.clear_rows()
             return
 
         sounds_h = read_sfx_file(self.decomp)
+        self.currentDefines = []
+
+        if len(self.selectedChannel.banks) > 1:
+            self.defineTable.spacers = [0, 4, 7, 9]
+        else:
+            self.defineTable.spacers = [0, 3, 6, 8]
 
         for bank in self.selectedChannel.banks:
             sfxs = get_sfx_defines_from_id(sounds_h, bank, sfxListEntry.sfxID)
 
             for sfx in sfxs:
-                if len(self.selectedChannel.banks) > 1:
-                    self.add_define_row(sfx.define, sfx.priority, sfx.flags, self.selectedChannel.banks, bank)
-                else:
-                    self.add_define_row(sfx.define, sfx.priority, sfx.flags)
+                self.currentDefines.append([sfx.define, sfx.priority, sfx.flags, self.selectedChannel.banks, bank])
+        self.defineTable.create_rows(self.currentDefines)
 
     # Open dialog window for setting flags
     def define_flags_open_window(self, index, button):
@@ -405,6 +404,7 @@ class ImportSfxTab(MainTab):
         dialog = DefineFlagsWindow(self.mainWindow, button.flagsValue)
         if dialog.exec():
             button.flagsValue = dialog.flags
+            self.update_define_data(index)
 
     # When a new sequence is selected, update some of the info on the right
     def sfxlist_selection_changed(self):
@@ -413,7 +413,7 @@ class ImportSfxTab(MainTab):
             # Channel selected
             self.selectedChunk = None
             self.selectedChannel = item
-            self.clear_define_rows()
+            self.defineTable.clear_rows()
         else:
             # Sfx selected
             self.selectedChunk = item.sfxListEntry.sfxChunk

@@ -48,13 +48,15 @@ class GuiDynamicTable(QFrame):
                 self.noRowsWidget.hide()
             self.grid.parentWidget().show()
 
+    def delete_grid_item(self, item):
+        if isinstance(item, QWidgetItem):
+            item.widget().deleteLater()
+        else:
+            del item
+
     def clear_rows(self):
         while self.grid.count():
-            item = self.grid.takeAt(0)
-            if isinstance(item, QWidgetItem):
-                item.widget().deleteLater()
-            else:
-                del item
+            self.delete_grid_item(self.grid.takeAt(0))
         self.add_spacers()
         self.rows = []
         self.toggle_no_rows_widget(True)
@@ -67,9 +69,6 @@ class GuiDynamicTable(QFrame):
 
         widgets = self.createRowFunc(self.grid, data, numRows)
         self.rows.append(widgets)
-
-    def delete_row(self, rowNum):
-        pass
 
     def create_rows(self, dataList):
         self.clear_rows()
