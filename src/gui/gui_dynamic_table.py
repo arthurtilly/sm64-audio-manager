@@ -18,21 +18,25 @@ from PyQt6 import QtCore
 # and creates all widgets for that row and returns an arbitrary list of those widgets.
 
 class GuiDynamicTable(QFrame):
-    def __init__(self, parent, createRowFunc, noRowsWidget=None):
+    def __init__(self, parent, createRowFunc, noRowsWidget=None, spacers=[]):
         super().__init__()
         parent.addWidget(self)
         self.layout = QVBoxLayout()
         self.setLayout(self.layout)
         self.createRowFunc = createRowFunc
         self.noRowsWidget = noRowsWidget
+        self.spacers = spacers
 
         self.grid = new_widget(self.layout, QGridLayout)
         self.grid.setContentsMargins(0, 0, 0, 0)
-        self.rows = []
-
         if self.noRowsWidget is not None:
             self.layout.addWidget(self.noRowsWidget)
-            self.toggle_no_rows_widget(True)
+
+        self.clear_rows()
+
+    def add_spacers(self):
+        for spacer in self.spacers:
+            grid_add_spacer(self.grid, 0, spacer)
 
     def toggle_no_rows_widget(self, shown):
         if shown:
@@ -49,6 +53,9 @@ class GuiDynamicTable(QFrame):
             item = self.grid.takeAt(0)
             if isinstance(item, QWidgetItem):
                 item.widget().deleteLater()
+            else:
+                del item
+        self.add_spacers()
         self.rows = []
         self.toggle_no_rows_widget(True)
         self.grid.update()
@@ -59,7 +66,10 @@ class GuiDynamicTable(QFrame):
             self.toggle_no_rows_widget(False)
 
         widgets = self.createRowFunc(self.grid, data, numRows)
-        self.rows.append((data, widgets))
+        self.rows.append(widgets)
+
+    def delete_row(self, rowNum):
+        pass
 
     def create_rows(self, dataList):
         self.clear_rows()

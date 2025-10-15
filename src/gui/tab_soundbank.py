@@ -149,32 +149,24 @@ class SoundbankTab(MainTab):
         self.currEnvelope = [[2, 1.0], [32700, 1.0], [32700, 1.0], [32700, 1.0], [32700, 1.0]]
         
     def update_envelope(self, row):
-        self.currEnvelope[row][0] = int(self.envelopeFields[row][0].text())
-        self.currEnvelope[row][1] = float(self.envelopeFields[row][1].text())
+        self.currEnvelope[row][0] = int(self.envelopeTable.rows[row][0].text())
+        self.currEnvelope[row][1] = float(self.envelopeTable.rows[row][1].text())
 
-    def create_envelope_rows(self, layout, rows):
-        while layout.count():
-            widget = layout.takeAt(0).widget()
-            if widget is not None:
-                layout.removeWidget(widget)
-                widget.deleteLater()
-        grid_add_spacer(layout, 0, 0)
-        grid_add_spacer(layout, 0, 5)
-        self.envelopeFields = []
-        for i in range(rows):
-            self.envelopeFields.append([])
-            for j in range(2):
-                numberField = QLineEdit()
-                numberField.setMaximumWidth(50)
-                if j == 0:
-                    numberField.setValidator(QIntValidator())
-                else:
-                    numberField.setValidator(QDoubleValidator())
-                numberField.setText(str(self.currEnvelope[i][j]))
-                numberField.textChanged.connect(lambda: self.update_envelope(i))
-                layout.addWidget(QLabel(text="Time:" if j == 0 else "Volume:"), i, j*2 + 1)
-                layout.addWidget(numberField, i, j*2+2)
-                self.envelopeFields[i].append(numberField)
+    def add_envelope_row(self, grid, data, index):
+        fields = []
+        for j in range(2):
+            numberField = QLineEdit()
+            numberField.setMaximumWidth(50)
+            if j == 0:
+                numberField.setValidator(QIntValidator())
+            else:
+                numberField.setValidator(QDoubleValidator())
+            numberField.setText(str(data[j]))
+            numberField.textChanged.connect(lambda: self.update_envelope(index))
+            grid.addWidget(QLabel(text="Time:" if j == 0 else "Volume:"), index, j*2 + 1)
+            grid.addWidget(numberField, index, j*2+2)
+            fields.append(numberField)
+        return fields
 
     def sample_set_row_enabled(self, row, enabled):
         for col in range(2,self.sampleGridLayout.columnCount()):
@@ -238,22 +230,19 @@ class SoundbankTab(MainTab):
             envelopeLayout.addStretch(1)
             envelopeLayout.addWidget(QLabel(text="Rows:"))
             self.envelopeRowCount = QSpinBox()
-            self.envelopeRowCount.setRange(0, 5)
+            self.envelopeRowCount.setRange(1, 5)
             self.envelopeRowCount.setValue(3)
             envelopeLayout.addWidget(self.envelopeRowCount)
             envelopeLayout.addStretch(1)
 
-            self.envelopeGridLayout = new_widget(layout, QGridLayout)
-            self.create_envelope_rows(self.envelopeGridLayout, 3)
-            layout.addWidget(self.create_dividing_line())
+            self.envelopeTable = GuiDynamicTable(layout, self.add_envelope_row, spacers=[0,5])
+            self.envelopeTable.create_rows(self.currEnvelope[:self.envelopeRowCount.value()])
 
-            self.envelopeRowCount.valueChanged.connect(lambda: self.create_envelope_rows(self.envelopeGridLayout, self.envelopeRowCount.value()))
-            self.envelopeGridLayout.setContentsMargins(11, 0, 11, 11)
-            envelopeLayout.setContentsMargins(11, 11, 11, 0)
+            layout.addWidget(self.create_dividing_line())
+            self.envelopeRowCount.valueChanged.connect(lambda: self.envelopeTable.create_rows(self.currEnvelope[:self.envelopeRowCount.value()]))
 
         # Release rate
         releaseRateLayout = new_widget(layout, QHBoxLayout)
-        # releaseRateLayout.addStretch(1)
 
         releaseRateLayout.addStretch(1)
 
@@ -367,7 +356,7 @@ class SoundbankTab(MainTab):
                 self.sampleRows[2][3].setText(str(instData.normal_range_hi))
 
             self.envelopeRowCount.setValue(numRows)
-            self.create_envelope_rows(self.envelopeGridLayout, numRows)
+            self.envelopeTable.create_rows(self.currEnvelope[:self.envelopeRowCount.value()])
 
 
     def save_sample(self):
@@ -416,7 +405,6 @@ class SoundbankTab(MainTab):
                 self.selectedInstrument.setText(0, newName)
 
             save_instrument_data(self.decomp, self.selectedSoundbank.text(0), self.selectedInstrument.text(0), instData)
-            cleanup_unused_envelopes(self.decomp, self.selectedSoundbank.text(0))
             self.update_sample_data()
         except AudioManagerException as e:
             self.set_info_message("Error: " + str(e), COLOR_RED)

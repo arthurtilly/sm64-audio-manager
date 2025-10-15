@@ -287,7 +287,9 @@ def save_instrument_data(decomp, soundbank, inst, data):
 
     # Save new data
     jsonData = open_soundbank(decomp, soundbank)
+
     jsonData["instruments"][inst] = data.to_data()
+    cleanup_unused_envelopes(jsonData)
     save_soundbank(decomp, soundbank, jsonData)
 
     # If any old samples are no longer used, delete them
@@ -312,11 +314,12 @@ def add_envelope(decomp, soundbank, envelope):
     save_soundbank(decomp, soundbank, jsonData)
     return name
 
-def cleanup_unused_envelopes(decomp, soundbank):
-    jsonData = open_soundbank(decomp, soundbank)
+def cleanup_unused_envelopes(jsonData):
     usedEnvelopes = set()
     for name, inst in jsonData["instruments"].items():
-        if name == "percussion": continue
-        usedEnvelopes.add(inst["envelope"])
+        if name == "percussion":
+            for perc in inst:
+                usedEnvelopes.add(perc["envelope"])
+        else:
+            usedEnvelopes.add(inst["envelope"])
     jsonData["envelopes"] = {name: env for name, env in jsonData["envelopes"].items() if name in usedEnvelopes}
-    save_soundbank(decomp, soundbank, jsonData)
