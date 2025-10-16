@@ -140,6 +140,13 @@ class ImportSfxTab(MainTab):
         addEntriesLabel = QLabel(text="Add/remove sound entries:")
         optionsLayout.addWidget(addEntriesLabel)
         soundFrame = self.create_sound_frame(optionsLayout)
+
+        editLabel = QLabel(text="Edit/replace sound effect:")
+        optionsLayout.addWidget(editLabel)
+        editFrame = self.create_edit_frame(optionsLayout)
+
+        soundDefinesLabel = QLabel(text="Sound defines:")
+        optionsLayout.addWidget(soundDefinesLabel)
         defineFrame = self.create_define_frame(optionsLayout)
 
         self.infoLabel = QLabel(text="")
@@ -149,7 +156,7 @@ class ImportSfxTab(MainTab):
         optionsLayout.addStretch(1)
 
         self.toggleRequiresChannel = (soundFrame, addEntriesLabel)
-        self.toggleRequiresSound = (defineFrame, self.deleteButton)
+        self.toggleRequiresSound = (defineFrame, soundDefinesLabel, self.deleteButton)
         self.toggle_all_options()
 
     
@@ -189,6 +196,208 @@ class ImportSfxTab(MainTab):
         buttonLayout.addStretch(1)
 
         return soundFrame
+    
+    def add_instrument_row(self, grid, data, index):
+        grid.addWidget(QLabel(text="Bank:"), index, 1)
+        bank = QComboBox()
+        grid.addWidget(bank, index, 2)
+
+        grid.addWidget(QLabel(text="Instrument:"), index, 4)
+        instrument = QComboBox()
+        grid.addWidget(instrument, index, 5)
+
+        playButton = QPushButton(text="Play...")
+        grid.addWidget(playButton, index, 7)
+
+    def create_edit_frame(self, layout):
+        # Contains two tabs, one for editing sound properties and one for replacing the sound data
+        editTabs = QTabWidget()
+        layout.addWidget(editTabs)
+
+        editFrame = QFrame()
+        editLayout = QVBoxLayout()
+        editFrame.setLayout(editLayout)
+        editTabs.addTab(editFrame, "Edit...")
+
+        instTable = GuiDynamicTable(editLayout, self.add_instrument_row, noRowsWidget = QLabel(text="This sound is empty!", alignment=QtCore.Qt.AlignmentFlag.AlignCenter), spacers=[0,3,6,8])
+        instTable.create_rows([0,0,0])
+
+        saveInstButton = QPushButton(text="Save...")
+        editLayout.addWidget(saveInstButton, alignment=QtCore.Qt.AlignmentFlag.AlignHCenter)
+
+        replaceFrame = QFrame()
+        replaceLayout = QVBoxLayout()
+        replaceFrame.setLayout(replaceLayout)
+        editTabs.addTab(replaceFrame, "Replace...")
+
+        return editTabs
+
+    def toggle_all_options(self):
+        self.toggle_options(self.toggleRequiresChannel, self.selectedChannel is not None)
+        self.toggle_options(self.toggleRequiresSound, self.selectedChunk is not None)
+
+    def sound_name_in_use(self, name):
+        return self.chunkDictionary.dictionary.get("." + name) is not None
+    
+    def load_chunk_dict(self):
+        self.chunkDictionary = ChunkDictionary(self.decomp)
+
+    # Determine default name for sound based on selected chunk
+    def update_sound_name(self):
+        # Strip numbers from right side of name
+        if self.selectedChunk is None:
+            # Get index of self.selectedChannel in the list
+            index = self.sfxList.indexOfTopLevelItem(self.selectedChannel)
+            if index < len(bankDefaults):
+                name = f"sound_{bankDefaults[index]}_1"
+            else:
+                name = "sound_new_1"
+        else:
+            name = self.selectedChunk.name[1:]
+        self.soundName.setText(get_new_name(name, self.sound_name_in_use))
+
+    # When a new sequence is selected, update some of the info on the right
+    def sfxlist_selection_changed(self):
+        item = self.sfxList.currentItem()
+        if not hasattr(item, 'sfxListEntry'):
+            # Channel selected
+            self.selectedChunk = None
+            self.selectedChannel = item
+            self.defineTable.clear_rows()
+        else:
+            # Sfx selected
+            self.selectedChunk = item.sfxListEntry.sfxChunk
+            self.selectedChannel = item.parent()
+            self.init_define_rows(item.sfxListEntry)
+
+        self.toggle_all_options()
+        self.update_sound_name()
+
+
+    # Reload the sound effect list widget
+    def load_sfx_list(self):
+        self.sfxList.blockSignals(True)
+        # Check if the sequence list tree widget is already loaded and clear it
+        if len(self.sfxList.children()) > 0:
+            self.sfxList.clear()
+
+        parsedChannelTables = []
+        for channelEntry in self.chunkDictionary.bankTable:
+            # Only show one entry for each table, skip duplicates
+            table = channelEntry.table.name
+            if table in parsedChannelTables:
+                continue
+            parsedChannelTables.append(table)
+
+            # New top level item for every channel
+            bankItem = QTreeWidgetItem(self.sfxList)
+            banks = channelEntry.banks
+            bankItem.banks = banks
+
+            if len(banks) > 1:
+                text = "Channels %s" % ("/".join([str(bank) for bank in banks]))
+            else:
+                text = "Channel %d" % (banks[0])
+            smallestBank = min(banks)
+            if (smallestBank < len(bankNames)):
+                text += " (%s)" % (bankNames[smallestBank])
+            bankItem.setText(0, text)
+
+            # Add children for each sfx
+            tableChunk = channelEntry.table
+            allSfx = self.chunkDictionary.get_all_sound_refs_from_channel(tableChunk)
+            for i, sfx in enumerate(allSfx):
+                sfxItem = QTreeWidgetItem(bankItem)
+                sfxItem.setText(0, sfx.name[1:])
+                sfxItem.sfxListEntry = SfxListEntry(sfx, i)
+                sfxItem.setFlags(sfxItem.flags() | QtCore.Qt.ItemFlag.ItemIsEditable)
+
+        self.sfxList.blockSignals(False)
+
+    # Update IDs for all children of a bank list item
+    def update_sfx_ids(self, bankItem):
+        for i in range(bankItem.childCount()):
+            sfxItem = bankItem.child(i)
+            sfxItem.sfxListEntry.sfxID = i
+
+
+    # Delete currently selected sfx
+    def delete_pressed(self):
+        self.clear_info_message()
+        item = self.sfxList.currentItem()
+        channel = item.parent()
+
+        delete_sfx(self.decomp, self.chunkDictionary, channel.banks, item.sfxListEntry.sfxID)
+        self.mainWindow.write_chunk_dict(self.chunkDictionary)
+        
+        # Delete the item from the list
+        channel.removeChild(item)
+        self.update_sfx_ids(channel)
+
+        self.sfxlist_selection_changed()
+
+    # Create and insert a new sfx entry in the current channel at the given index
+    def insert_sfx_entry(self, index):
+        self.clear_info_message()
+        try:
+            newChunkName = self.soundName.text().strip()
+            validate_name(newChunkName, "sound name")
+            newChunk = insert_sfx(self.decomp, self.chunkDictionary, self.selectedChannel.banks, index, "." + newChunkName)
+            self.mainWindow.write_chunk_dict(self.chunkDictionary)
+
+            self.sfxList.blockSignals(True)
+            # Create new list item
+            child = QTreeWidgetItem()
+            child.setText(0, newChunkName)
+            child.sfxListEntry = SfxListEntry(newChunk, index)
+            child.setFlags(child.flags() | QtCore.Qt.ItemFlag.ItemIsEditable)
+            # Insert list item
+            self.selectedChannel.insertChild(index, child)
+            self.update_sfx_ids(self.selectedChannel)
+            self.sfxList.blockSignals(False)
+            self.sfxList.setCurrentItem(child)
+        except AudioManagerException as e:
+            self.set_info_message("Error: " + str(e), COLOR_RED)
+            return
+
+    def insert_above_pressed(self):
+        if self.selectedChunk is None:
+            index = 0
+        else:
+            item = self.sfxList.currentItem()
+            index = self.selectedChannel.indexOfChild(item)
+        self.insert_sfx_entry(index)
+
+    def insert_below_pressed(self):
+        if self.selectedChunk is None:
+            index = self.selectedChannel.childCount()
+        else:
+            item = self.sfxList.currentItem()
+            index = self.selectedChannel.indexOfChild(item) + 1
+        self.insert_sfx_entry(index)
+
+    # Rename currently selected sfx
+    def sfx_item_changed(self, sfxItem):
+        self.clear_info_message()
+        try:
+            # Validate name
+            name = sfxItem.text(0)
+            validate_name(name, "sound name")
+
+            oldName = self.selectedChunk.name
+            self.selectedChunk.name = "." + name
+
+            self.chunkDictionary.change_sound_name(oldName, self.selectedChunk.name)
+            self.mainWindow.write_chunk_dict(self.chunkDictionary)
+
+        except AudioManagerException as e:
+            sfxItem.setText(0, self.selectedChunk.name[1:])
+            self.set_info_message("Error: " + str(e), COLOR_RED)
+            return
+        
+
+
+    # ================= DEFINES ==================
 
     # Create the frame for the sound define data
     def create_define_frame(self, layout):
@@ -196,8 +405,6 @@ class ImportSfxTab(MainTab):
         self.defineLayout = QVBoxLayout()
         defineFrame.setLayout(self.defineLayout)
         layout.addWidget(defineFrame)
-        # Frame label
-        self.defineLayout.addWidget(QLabel(text="Sound defines:"))
         defineFrame.setFrameShape(QFrame.Shape.StyledPanel)
 
         self.defineTable = GuiDynamicTable(self.defineLayout, self.add_define_row, noRowsWidget = QLabel(text="This sound has no defines...", alignment=QtCore.Qt.AlignmentFlag.AlignCenter), spacers=[])
@@ -342,42 +549,6 @@ class ImportSfxTab(MainTab):
         self.currentDefines.append([self.get_new_define_name(), 128, "0", channel.banks, channel.banks[0]])
         self.defineTable.append_new_row(self.currentDefines[-1])
 
-    def toggle_all_options(self):
-        self.toggle_options(self.toggleRequiresChannel, self.selectedChannel is not None)
-        self.toggle_options(self.toggleRequiresSound, self.selectedChunk is not None)
-
-
-    # Toggle loop options between enabled and disabled
-    def toggle_loop_options(self, enabled):
-        self.loopBeginLabel.setEnabled(enabled)
-        self.loopBegin.setEnabled(enabled)
-        self.loopEndLabel.setEnabled(enabled)
-        self.loopEnd.setEnabled(enabled)
-
-    # Toggle the loop options on or off whenever the loop checkbox is modified
-    def loop_checkbutton_pressed(self):
-        self.toggle_loop_options(self.doLoop.isChecked())
-
-    def sound_name_in_use(self, name):
-        return self.chunkDictionary.dictionary.get("." + name) is not None
-    
-    def load_chunk_dict(self):
-        self.chunkDictionary = ChunkDictionary(self.decomp)
-
-    # Determine default name for sound based on selected chunk
-    def update_sound_name(self):
-        # Strip numbers from right side of name
-        if self.selectedChunk is None:
-            # Get index of self.selectedChannel in the list
-            index = self.sfxList.indexOfTopLevelItem(self.selectedChannel)
-            if index < len(bankDefaults):
-                name = f"sound_{bankDefaults[index]}_1"
-            else:
-                name = "sound_new_1"
-        else:
-            name = self.selectedChunk.name[1:]
-        self.soundName.setText(get_new_name(name, self.sound_name_in_use))
-
     def init_define_rows(self, sfxListEntry=None):
         if sfxListEntry is None:
             self.defineTable.clear_rows()
@@ -405,142 +576,3 @@ class ImportSfxTab(MainTab):
         if dialog.exec():
             button.flagsValue = dialog.flags
             self.update_define_data(index)
-
-    # When a new sequence is selected, update some of the info on the right
-    def sfxlist_selection_changed(self):
-        item = self.sfxList.currentItem()
-        if not hasattr(item, 'sfxListEntry'):
-            # Channel selected
-            self.selectedChunk = None
-            self.selectedChannel = item
-            self.defineTable.clear_rows()
-        else:
-            # Sfx selected
-            self.selectedChunk = item.sfxListEntry.sfxChunk
-            self.selectedChannel = item.parent()
-            self.init_define_rows(item.sfxListEntry)
-
-        self.toggle_all_options()
-        self.update_sound_name()
-
-
-    # Reload the sound effect list widget
-    def load_sfx_list(self):
-        self.sfxList.blockSignals(True)
-        # Check if the sequence list tree widget is already loaded and clear it
-        if len(self.sfxList.children()) > 0:
-            self.sfxList.clear()
-
-        parsedChannelTables = []
-        for channelEntry in self.chunkDictionary.bankTable:
-            # Only show one entry for each table, skip duplicates
-            table = channelEntry.table.name
-            if table in parsedChannelTables:
-                continue
-            parsedChannelTables.append(table)
-
-            # New top level item for every channel
-            bankItem = QTreeWidgetItem(self.sfxList)
-            banks = channelEntry.banks
-            bankItem.banks = banks
-
-            if len(banks) > 1:
-                text = "Channels %s" % ("/".join([str(bank) for bank in banks]))
-            else:
-                text = "Channel %d" % (banks[0])
-            smallestBank = min(banks)
-            if (smallestBank < len(bankNames)):
-                text += " (%s)" % (bankNames[smallestBank])
-            bankItem.setText(0, text)
-
-            # Add children for each sfx
-            tableChunk = channelEntry.table
-            allSfx = self.chunkDictionary.get_all_sound_refs_from_channel(tableChunk)
-            for i, sfx in enumerate(allSfx):
-                sfxItem = QTreeWidgetItem(bankItem)
-                sfxItem.setText(0, sfx.name[1:])
-                sfxItem.sfxListEntry = SfxListEntry(sfx, i)
-                sfxItem.setFlags(sfxItem.flags() | QtCore.Qt.ItemFlag.ItemIsEditable)
-
-        self.sfxList.blockSignals(False)
-
-    # Update IDs for all children of a bank list item
-    def update_sfx_ids(self, bankItem):
-        for i in range(bankItem.childCount()):
-            sfxItem = bankItem.child(i)
-            sfxItem.sfxListEntry.sfxID = i
-
-
-    # Delete currently selected sfx
-    def delete_pressed(self):
-        self.clear_info_message()
-        item = self.sfxList.currentItem()
-        channel = item.parent()
-
-        delete_sfx(self.decomp, self.chunkDictionary, channel.banks, item.sfxListEntry.sfxID)
-        self.mainWindow.write_chunk_dict(self.chunkDictionary)
-        
-        # Delete the item from the list
-        channel.removeChild(item)
-        self.update_sfx_ids(channel)
-
-        self.sfxlist_selection_changed()
-
-    # Create and insert a new sfx entry in the current channel at the given index
-    def insert_sfx_entry(self, index):
-        self.clear_info_message()
-        try:
-            newChunkName = self.soundName.text().strip()
-            validate_name(newChunkName, "sound name")
-            newChunk = insert_sfx(self.decomp, self.chunkDictionary, self.selectedChannel.banks, index, "." + newChunkName)
-            self.mainWindow.write_chunk_dict(self.chunkDictionary)
-
-            self.sfxList.blockSignals(True)
-            # Create new list item
-            child = QTreeWidgetItem()
-            child.setText(0, newChunkName)
-            child.sfxListEntry = SfxListEntry(newChunk, index)
-            child.setFlags(child.flags() | QtCore.Qt.ItemFlag.ItemIsEditable)
-            # Insert list item
-            self.selectedChannel.insertChild(index, child)
-            self.update_sfx_ids(self.selectedChannel)
-            self.sfxList.blockSignals(False)
-            self.sfxList.setCurrentItem(child)
-        except AudioManagerException as e:
-            self.set_info_message("Error: " + str(e), COLOR_RED)
-            return
-
-    def insert_above_pressed(self):
-        if self.selectedChunk is None:
-            index = 0
-        else:
-            item = self.sfxList.currentItem()
-            index = self.selectedChannel.indexOfChild(item)
-        self.insert_sfx_entry(index)
-
-    def insert_below_pressed(self):
-        if self.selectedChunk is None:
-            index = self.selectedChannel.childCount()
-        else:
-            item = self.sfxList.currentItem()
-            index = self.selectedChannel.indexOfChild(item) + 1
-        self.insert_sfx_entry(index)
-
-    # Rename currently selected sfx
-    def sfx_item_changed(self, sfxItem):
-        self.clear_info_message()
-        try:
-            # Validate name
-            name = sfxItem.text(0)
-            validate_name(name, "sound name")
-
-            oldName = self.selectedChunk.name
-            self.selectedChunk.name = "." + name
-
-            self.chunkDictionary.change_sound_name(oldName, self.selectedChunk.name)
-            self.mainWindow.write_chunk_dict(self.chunkDictionary)
-
-        except AudioManagerException as e:
-            sfxItem.setText(0, self.selectedChunk.name[1:])
-            self.set_info_message("Error: " + str(e), COLOR_RED)
-            return

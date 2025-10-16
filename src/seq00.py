@@ -31,6 +31,7 @@ referenceCommands = (
 
     ("layer_call",       0,        True,        CHUNK_TYPE_LAYER,         CHUNK_TYPE_LAYER),
     ("layer_end",        0,        False,       CHUNK_TYPE_LAYER,         None),
+    ("layer_jump",       0,        False,       CHUNK_TYPE_LAYER,         CHUNK_TYPE_LAYER),
 
     ("envelope_goto",    1,        False,       CHUNK_TYPE_ENVELOPE,      None),
     ("envelope_hang",    0,        False,       CHUNK_TYPE_ENVELOPE,      None),
@@ -86,6 +87,9 @@ class InstrCommand:
         self.bank = None
         self.instrument = instrument
 
+    def __repr__(self):
+        return self.get_str()
+
     def get_str(self):
         if (self.isLayer):
             return "layer_setinstr %d" % self.instrument
@@ -101,6 +105,7 @@ class SequencePlayerChunk:
         self.parents = [] # All chunks that reference this chunk
         self.lines = [] # Lines of commands, either strings or reference commands
         self.followingChunk = None
+        self.instrumentsResolved = False
 
     def __repr__(self):
         return "Chunk " + self.name
@@ -149,37 +154,58 @@ class SequencePlayerChunk:
         return False
 
     # Resolve references for all lines
-    def resolve_references(self, chunkDict, bank=None):
+    def resolve_references(self, chunkDict):
         for line in self.lines:
             if type(line) == ReferenceCommand:
                 if not line.resolved:
                     line.resolve_command(chunkDict)
                     self.add_child(line.reference)
-                if line.commandID == get_command_id("chan_setlayer"):
-                    line.reference.resolve_references(chunkDict, bank)
+                if line.reference is not None and line.reference.type == CHUNK_TYPE_UNKNOWN:
+                    line.reference.type = referenceCommands[line.commandID][4]
+
+    # Resolve instrument commands
+    def resolve_instruments(self, bank=None):
+        # Basic recursion / loop guard
+        if self.instrumentsResolved: return
+        self.instrumentsResolved = True
+
+        checkedChildren = set()
+        for line in self.lines:
+            if type(line) == ReferenceCommand:
+                # Check for any reference commands that point to layers
+                if line.reference is not None and line.reference is not self and referenceCommands[line.commandID][4] == CHUNK_TYPE_LAYER:
+                    line.reference.resolve_instruments(bank)
+                    checkedChildren.add(line.reference)
             elif type(line) == InstrCommand:
                 if bank is not None:
                     line.bank = bank
             else:
                 lineSplit = line.split(" ")
-                # Check for regular channel setting bank/instruments
+                # Check for bank command
                 if lineSplit[0] == "chan_setbank":
                     bank = int(lineSplit[1], 0)
 
-        # Build instrument list for channels only to know which are referenced
-        if (self.type != CHUNK_TYPE_CHANNEL):
+        # Children that do not have reference commands are fallthrough
+        # so resolve at the end
+        if self.type != CHUNK_TYPE_LAYER:
             return
+        for child in self.children:
+            if child not in checkedChildren:
+                child.resolve_instruments(bank)
         
-    def get_instruments(self):
+    def get_instrument_commands(self):
+        commands = set()
         if self.type != CHUNK_TYPE_CHANNEL and self.type != CHUNK_TYPE_LAYER:
-            return []
-        instruments = set()
+            return commands
         for line in self.lines:
             if type(line) == InstrCommand:
-                instruments.add((line.bank, line.instrument))
-            elif type(line) == ReferenceCommand and line.commandID == get_command_id("chan_setlayer"):
-                instruments.update(line.reference.get_instruments())
-        return list(instruments)
+                commands.add(line)
+        for child in self.children:
+            commands.update(child.get_instrument_commands())
+        return list(commands)
+        
+    def get_instrument_references(self):
+        return [(instCommand.bank, instCommand.instrument) for instCommand in self.get_instrument_commands()]
 
 @dataclass
 class ChannelEntry:
@@ -254,6 +280,8 @@ class ChunkDictionary:
         # Step 2: Iterate over all chunks and resolve references
         for chunk in self.dictionary.values():
             chunk.resolve_references(self)
+        for chunk in self.dictionary.values():
+            chunk.resolve_instruments()
 
 
     # Copy an individual chunk to the file
@@ -446,7 +474,7 @@ class ChunkDictionary:
                 if type(line) == InstrCommand:
                     if line.bank == bank and line.instrument >= inst:
                         line.instrument += shift
-    
+
     def delete_instrument(self, bank, inst):
         self.update_instruments(bank, inst, -1)
 
@@ -461,3 +489,9 @@ def get_command_id(cmd):
         if referenceCommands[i][0] == cmd:
             return i
     return None
+
+
+# chunkDict = ChunkDictionary("U:/home/arthur/HackerSM64")
+# sound = ".sound_general_clam_shell1"
+
+# print(chunkDict.dictionary[sound].get_instrument_references())
