@@ -105,7 +105,6 @@ class SequencePlayerChunk:
         self.parents = [] # All chunks that reference this chunk
         self.lines = [] # Lines of commands, either strings or reference commands
         self.followingChunk = None
-        self.instrumentsResolved = False
 
     def __repr__(self):
         return "Chunk " + self.name
@@ -164,17 +163,18 @@ class SequencePlayerChunk:
                     line.reference.type = referenceCommands[line.commandID][4]
 
     # Resolve instrument commands
-    def resolve_instruments(self, bank=None):
-        # Basic recursion / loop guard
-        if self.instrumentsResolved: return
-        self.instrumentsResolved = True
+    def resolve_instruments(self, bank=None, checked=None):
+        # Recursion guard
+        if checked is None: checked = []
+        if self in checked: return set()
+        checked.append(self)
 
         checkedChildren = set()
         for line in self.lines:
             if type(line) == ReferenceCommand:
                 # Check for any reference commands that point to layers
                 if line.reference is not None and line.reference is not self and referenceCommands[line.commandID][4] == CHUNK_TYPE_LAYER:
-                    line.reference.resolve_instruments(bank)
+                    line.reference.resolve_instruments(bank, checked)
                     checkedChildren.add(line.reference)
             elif type(line) == InstrCommand:
                 if bank is not None:
@@ -191,9 +191,14 @@ class SequencePlayerChunk:
             return
         for child in self.children:
             if child not in checkedChildren:
-                child.resolve_instruments(bank)
+                child.resolve_instruments(bank, checked)
         
-    def get_instrument_commands(self):
+    def get_instrument_commands(self, checked=None):
+        # Recursion guard
+        if checked is None: checked = []
+        if self in checked: return set()
+        checked.append(self)
+
         commands = set()
         if self.type != CHUNK_TYPE_CHANNEL and self.type != CHUNK_TYPE_LAYER:
             return commands
@@ -201,7 +206,7 @@ class SequencePlayerChunk:
             if type(line) == InstrCommand:
                 commands.add(line)
         for child in self.children:
-            commands.update(child.get_instrument_commands())
+            commands.update(child.get_instrument_commands(checked))
         return list(commands)
         
     def get_instrument_references(self):
@@ -492,6 +497,6 @@ def get_command_id(cmd):
 
 
 # chunkDict = ChunkDictionary("U:/home/arthur/HackerSM64")
-# sound = ".sound_general_clam_shell1"
+# sound = ".sound_menu_coin_its_a_me_mario"
 
 # print(chunkDict.dictionary[sound].get_instrument_references())

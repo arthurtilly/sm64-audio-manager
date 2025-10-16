@@ -534,6 +534,10 @@ class SoundbankTab(MainTab):
             index = self.selectedSoundbank.indexOfChild(self.selectedInstrument) + 1
         self.insert_new_instrument(index)
 
+    def play_temp_sound(self, path):
+        playsound3.playsound(path)
+        os.remove(path)
+
     def play_sample(self, index):
         sampleBank = get_sample_bank(self.decomp, self.selectedSoundbank.text(0))
         sampleName = self.sampleRows[index][0].currentText()
@@ -548,11 +552,12 @@ class SoundbankTab(MainTab):
             return
 
         pitchFactor = 2 ** (tuning / 12)
-        temp = tempfile.mktemp(suffix=".wav")
+        with tempfile.NamedTemporaryFile(suffix=".wav", delete=False) as tmp:
+            temp_path = tmp.name
         sampleRate = sf.info(samplePath).samplerate
         # Play at new sample rate
-        sf.write(temp, sf.read(samplePath)[0], int(sampleRate * pitchFactor))
-        threading.Thread(target=playsound3.playsound, args=(temp,), daemon=True).start()
+        sf.write(temp_path, sf.read(samplePath)[0], int(sampleRate * pitchFactor))
+        threading.Thread(target=self.play_temp_sound, args=(temp_path,), daemon=True).start()
 
     # Import sample
     def import_pressed(self):
