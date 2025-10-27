@@ -80,6 +80,7 @@ class MainWindow(QWidget):
         # Set button palette to window palette
         palette.setColor(QPalette.ColorRole.Button, palette.color(QPalette.ColorRole.Window))
         self.tabWidget.setPalette(palette)
+        self.chunkDict = ChunkDictionary(decomp)
 
         self.layout.insertWidget(0, self.tabWidget)
         self.layout.setStretchFactor(self.tabWidget, 1)
@@ -102,10 +103,8 @@ class MainWindow(QWidget):
         for tab in self.tabs:
             tab.set_audio_file(path)
 
-    def write_chunk_dict(self, chunkDict):
-        chunkDict.reconstruct_sequence_player()
-        for tab in self.tabs:
-            tab.load_chunk_dict()
+    def write_seq00(self):
+        self.chunkDict.reconstruct_sequence_player()
 
 
 # The frame that displays the current decomp directory

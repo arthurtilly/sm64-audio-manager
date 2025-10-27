@@ -150,11 +150,15 @@ def scan_all_soundbanks(decomp):
 def get_instruments(decomp, soundbankName):
     return open_soundbank(decomp, soundbankName).get("instrument_list", [])
 
-def soundbank_get_sfx_index(decomp, soundbankName):
+def get_sfx_banks(decomp):
     sequencesData = load_json(os.path.join(decomp, "sound", "sequences.json"))
-    if not soundbankName in sequencesData["00_sound_player"]:
+    return sequencesData["00_sound_player"]
+
+def soundbank_get_sfx_index(decomp, soundbankName):
+    sfxBanks = get_sfx_banks(decomp)
+    if not soundbankName in sfxBanks:
         return -1
-    return sequencesData["00_sound_player"].index(soundbankName)
+    return sfxBanks.index(soundbankName)
 
 def rename_soundbank(decomp, oldSoundbank, newSoundbank):
     validate_name(newSoundbank, "soundbank name")

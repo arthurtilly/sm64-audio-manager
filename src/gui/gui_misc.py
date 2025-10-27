@@ -4,6 +4,11 @@ from PyQt6.QtWidgets import *
 from PyQt6.QtGui import *
 from PyQt6 import QtCore
 
+import threading
+import playsound3
+import tempfile
+import soundfile as sf
+
 
 COLOR_WHITE = QColor(255, 255, 255)
 COLOR_RED = QColor(255, 0, 0)
@@ -17,6 +22,7 @@ class MainTab(QWidget):
         super().__init__()
         self.decomp = decomp
         self.mainWindow = window
+        self.chunkDictionary = window.chunkDict
         self.infoLabel = None
         self.create_page()
 
@@ -89,3 +95,20 @@ def fix_checkbox_palette(box):
     palette = box.palette()
     palette.setColor(QPalette.ColorRole.Base, box.parentWidget().palette().color(QPalette.ColorRole.Button))
     box.setPalette(palette)
+
+def play_temp_sound(path):
+    playsound3.playsound(path)
+    os.remove(path)
+
+def play_sound_tuned(samplePath, tuning=0):
+    if tuning == 0:
+        threading.Thread(target=playsound3.playsound, args=(samplePath,), daemon=True).start()
+        return
+
+    pitchFactor = 2 ** (tuning / 12)
+    with tempfile.NamedTemporaryFile(suffix=".wav", delete=False) as tmp:
+        temp_path = tmp.name
+    sampleRate = sf.info(samplePath).samplerate
+    # Play at new sample rate
+    sf.write(temp_path, sf.read(samplePath)[0], int(sampleRate * pitchFactor))
+    threading.Thread(target=play_temp_sound, args=(temp_path,), daemon=True).start()

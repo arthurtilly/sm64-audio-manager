@@ -11,6 +11,7 @@ append_parent_dir()
 from misc import *
 from sfx import *
 from seq00 import *
+from soundbank import *
 
 bankNames = (
     "Action",
@@ -109,7 +110,6 @@ class DefineFlagsWindow(QDialog):
 class ImportSfxTab(MainTab):
     # Create the regular page for importing sequences
     def create_page(self):
-        self.load_chunk_dict()
         init_sound_banks(self.decomp)
         self.selectedChunk = None
         self.selectedChannel = None
@@ -197,18 +197,71 @@ class ImportSfxTab(MainTab):
 
         return soundFrame
     
+    # Initialise values of an instrument dropdown
+    def instrument_dropdown_set_values(self, instrumentDropdown, instID=0):
+        instrumentDropdown.clear()
+        instruments = get_instruments(self.decomp, instrumentDropdown.bankDropdown.currentText())
+        targetInst = instruments[instID]
+        # Filter out None values
+        instruments = [instr for instr in instruments if instr is not None]
+        # Remember that this shifts indices!
+        instrumentDropdown.addItems(instruments)
+        instrumentDropdown.setCurrentIndex(instruments.index(targetInst))
+
+    def bank_dropdown_value_changed(self, bankDropdown):
+        # Iterate over all instrument dropdowns.
+        # Find all of them that match the bank command of this bank dropdown
+        # and update their values
+        for row in self.instTable.rows:
+            instrumentDropdown = row[1]
+            if instrumentDropdown.bankDropdown is bankDropdown:
+                self.instrument_dropdown_set_values(instrumentDropdown)
+                instrumentDropdown.setCurrentIndex(0)
+
+    def play_instrument(self, index):
+        instrumentDropdown = self.instTable.rows[index][1]
+        bankDropdown = instrumentDropdown.bankDropdown
+
+        bank = bankDropdown.currentText()
+        instrument = instrumentDropdown.currentText()
+
+        sampleBank = get_sample_bank(self.decomp, bank)
+        instData = get_instrument_data(self.decomp, bank, instrument)
+        sampleName = instData.sound.name + ".aiff"
+        sampleTuning = instData.sound.tuning
+
+        samplePath = os.path.join(self.decomp, "sound", "samples", sampleBank, sampleName)
+        play_sound_tuned(samplePath, sampleTuning)
+
     def add_instrument_row(self, grid, data, index):
+        bank = None
         if data[0] is not None:
             grid.addWidget(QLabel(text="Bank:"), index, 1)
             bank = QComboBox()
+            bank.command = data[0]
+            bank.addItems(get_sfx_banks(self.decomp))
+            bank.setCurrentIndex(data[0].bank)
+            bank.currentIndexChanged.connect(lambda: self.bank_dropdown_value_changed(bank))
             grid.addWidget(bank, index, 2)
 
         grid.addWidget(QLabel(text="Instrument:"), index, 4)
         instrument = QComboBox()
+        instrument.command = data[2]
+        if bank is None:
+            for row in self.instTable.rows:
+                if row[0] is not None and row[0].command is data[1]:
+                    instrument.bankDropdown = row[0]
+                    break
+        else:
+            instrument.bankDropdown = bank
+        self.instrument_dropdown_set_values(instrument, data[2].instrument)
         grid.addWidget(instrument, index, 5)
 
         playButton = QPushButton(text="Play...")
         grid.addWidget(playButton, index, 7)
+        playButton.clicked.connect(lambda: self.play_instrument(index))
+
+        return (bank, instrument)
 
     def init_inst_rows(self, instrumentCmds):
         data = []
@@ -219,10 +272,33 @@ class ImportSfxTab(MainTab):
         for cmd in instrumentCmds:
             if cmd.bank != curBankCmd:
                 curBankCmd = cmd.bank
-                data.append((curBankCmd.bank, cmd.instrument))
+                data.append((curBankCmd, curBankCmd, cmd))
             else:
-                data.append((None, cmd.instrument))
+                data.append((None,       curBankCmd, cmd))
         self.instTable.create_rows(data)
+
+    def save_instrument_edits(self):
+        try:
+            self.clear_info_message()
+            for row in self.instTable.rows:
+                bankDropdown = row[0]
+                instrumentDropdown = row[1]
+                
+                # update bank commands
+                if bankDropdown is not None:
+                    bankCmd = bankDropdown.command
+                    bankCmd.bank = bankDropdown.currentIndex()
+                
+                # update instrument commands
+                instCmd = instrumentDropdown.command
+                instruments = get_instruments(self.decomp, instrumentDropdown.bankDropdown.currentText())
+                instCmd.instrument = instruments.index(instrumentDropdown.currentText())
+
+            # Save changes
+            self.mainWindow.write_seq00()
+            self.set_info_message("Saved!", COLOR_GREEN)
+        except AudioManagerException as e:
+            self.set_info_message("Error: " + str(e), COLOR_RED)
 
     def create_edit_frame(self, layout):
         # Contains two tabs, one for editing sound properties and one for replacing the sound data
@@ -238,6 +314,7 @@ class ImportSfxTab(MainTab):
 
         saveInstButton = QPushButton(text="Save...")
         editLayout.addWidget(saveInstButton, alignment=QtCore.Qt.AlignmentFlag.AlignHCenter)
+        saveInstButton.clicked.connect(self.save_instrument_edits)
 
         replaceFrame = QFrame()
         replaceLayout = QVBoxLayout()
@@ -252,9 +329,6 @@ class ImportSfxTab(MainTab):
 
     def sound_name_in_use(self, name):
         return self.chunkDictionary.dictionary.get("." + name) is not None
-    
-    def load_chunk_dict(self):
-        self.chunkDictionary = ChunkDictionary(self.decomp)
 
     # Determine default name for sound based on selected chunk
     def update_sound_name(self):
@@ -343,7 +417,7 @@ class ImportSfxTab(MainTab):
         channel = item.parent()
 
         delete_sfx(self.decomp, self.chunkDictionary, channel.banks, item.sfxListEntry.sfxID)
-        self.mainWindow.write_chunk_dict(self.chunkDictionary)
+        self.mainWindow.write_seq00()
         
         # Delete the item from the list
         channel.removeChild(item)
@@ -358,7 +432,7 @@ class ImportSfxTab(MainTab):
             newChunkName = self.soundName.text().strip()
             validate_name(newChunkName, "sound name")
             newChunk = insert_sfx(self.decomp, self.chunkDictionary, self.selectedChannel.banks, index, "." + newChunkName)
-            self.mainWindow.write_chunk_dict(self.chunkDictionary)
+            self.mainWindow.write_seq00()
 
             self.sfxList.blockSignals(True)
             # Create new list item
@@ -403,7 +477,7 @@ class ImportSfxTab(MainTab):
             self.selectedChunk.name = "." + name
 
             self.chunkDictionary.change_sound_name(oldName, self.selectedChunk.name)
-            self.mainWindow.write_chunk_dict(self.chunkDictionary)
+            self.mainWindow.write_seq00()
 
         except AudioManagerException as e:
             sfxItem.setText(0, self.selectedChunk.name[1:])

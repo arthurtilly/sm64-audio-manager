@@ -2,10 +2,6 @@ from PyQt6.QtWidgets import *
 from PyQt6.QtGui import *
 from PyQt6 import QtCore
 
-import threading
-import playsound3
-import tempfile
-
 from gui_misc import *
 from gui_sample_import import *
 from gui_dynamic_table import *
@@ -17,7 +13,6 @@ from aiff import *
 
 class SoundbankTab(MainTab):
     def create_page(self):
-        self.load_chunk_dict()
         self.sampleFrame = None
         self.selectedSoundbank = None
         self.selectedInstrument = None
@@ -437,9 +432,6 @@ class SoundbankTab(MainTab):
         self.clear_info_message()
         self.chosenSamplePath = path
 
-    def load_chunk_dict(self):
-        self.chunkDictionary = ChunkDictionary(self.decomp)
-
     def load_soundbank_list(self):
         for soundbank in self.soundbanks:
             item = QTreeWidgetItem(self.soundbankList)
@@ -493,7 +485,7 @@ class SoundbankTab(MainTab):
             # If deleted instrument is used in seq00, update all instrument IDs
             if bankIndex != -1:
                 self.chunkDictionary.delete_instrument(bankIndex, instIndex)
-                self.mainWindow.write_chunk_dict(self.chunkDictionary)
+                self.mainWindow.write_seq00()
             delete_instrument(self.decomp, self.selectedSoundbank.text(0), instIndex)
             self.selectedSoundbank.removeChild(self.selectedInstrument)
             self.selectedInstrument = None
@@ -509,7 +501,7 @@ class SoundbankTab(MainTab):
             bankIndex = soundbank_get_sfx_index(self.decomp, self.selectedSoundbank.text(0))
             if bankIndex != -1:
                 self.chunkDictionary.insert_instrument(bankIndex, index)
-                self.mainWindow.write_chunk_dict(self.chunkDictionary)
+                self.mainWindow.write_seq00()
             self.soundbankList.blockSignals(True)
             child = QTreeWidgetItem()
             child.setText(0, "<Empty>")
@@ -547,17 +539,8 @@ class SoundbankTab(MainTab):
             tuning = 0
         else:
             tuning = self.sampleRows[index][1].value()
-        if tuning == 0:
-            threading.Thread(target=playsound3.playsound, args=(samplePath,), daemon=True).start()
-            return
 
-        pitchFactor = 2 ** (tuning / 12)
-        with tempfile.NamedTemporaryFile(suffix=".wav", delete=False) as tmp:
-            temp_path = tmp.name
-        sampleRate = sf.info(samplePath).samplerate
-        # Play at new sample rate
-        sf.write(temp_path, sf.read(samplePath)[0], int(sampleRate * pitchFactor))
-        threading.Thread(target=self.play_temp_sound, args=(temp_path,), daemon=True).start()
+        play_sound_tuned(samplePath, tuning)
 
     # Import sample
     def import_pressed(self):

@@ -223,7 +223,11 @@ class SequencePlayerChunk:
         return list(commands)
         
     def get_instrument_references(self):
-        return [(instCommand.bank.bank, instCommand.instrument) for instCommand in self.get_instrument_commands()]
+        references = []
+        for instCommand in self.get_instrument_commands():
+            if instCommand.bank is not None:
+                references.append((instCommand.bank.bank, instCommand.instrument))
+        return references
 
 @dataclass
 class ChannelEntry:
@@ -306,7 +310,7 @@ class ChunkDictionary:
     def write_chunk_to_file(self, chunk, f):
         f.write("\n" + chunk.name + ":\n")
         for line in chunk.lines:
-            if type(line) == ReferenceCommand or type(line) == InstrCommand:
+            if type(line) == ReferenceCommand or type(line) == InstrCommand or type(line) == BankCommand:
                 f.write(line.get_str() + "\n")
             else:
                 f.write(line + "\n")
