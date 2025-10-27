@@ -198,9 +198,10 @@ class ImportSfxTab(MainTab):
         return soundFrame
     
     def add_instrument_row(self, grid, data, index):
-        grid.addWidget(QLabel(text="Bank:"), index, 1)
-        bank = QComboBox()
-        grid.addWidget(bank, index, 2)
+        if data[0] is not None:
+            grid.addWidget(QLabel(text="Bank:"), index, 1)
+            bank = QComboBox()
+            grid.addWidget(bank, index, 2)
 
         grid.addWidget(QLabel(text="Instrument:"), index, 4)
         instrument = QComboBox()
@@ -208,6 +209,20 @@ class ImportSfxTab(MainTab):
 
         playButton = QPushButton(text="Play...")
         grid.addWidget(playButton, index, 7)
+
+    def init_inst_rows(self, instrumentCmds):
+        data = []
+        # Sort commands by bank first, then instrument
+        instrumentCmds.sort(key=lambda x: (x.bank.bank, x.instrument))
+        # Only the first instrument in each bank shows the bank number
+        curBankCmd = None
+        for cmd in instrumentCmds:
+            if cmd.bank != curBankCmd:
+                curBankCmd = cmd.bank
+                data.append((curBankCmd.bank, cmd.instrument))
+            else:
+                data.append((None, cmd.instrument))
+        self.instTable.create_rows(data)
 
     def create_edit_frame(self, layout):
         # Contains two tabs, one for editing sound properties and one for replacing the sound data
@@ -219,8 +234,7 @@ class ImportSfxTab(MainTab):
         editFrame.setLayout(editLayout)
         editTabs.addTab(editFrame, "Edit...")
 
-        instTable = GuiDynamicTable(editLayout, self.add_instrument_row, noRowsWidget = QLabel(text="This sound is empty!", alignment=QtCore.Qt.AlignmentFlag.AlignCenter), spacers=[0,3,6,8])
-        instTable.create_rows([0,0,0])
+        self.instTable = GuiDynamicTable(editLayout, self.add_instrument_row, noRowsWidget = QLabel(text="This sound is empty!", alignment=QtCore.Qt.AlignmentFlag.AlignCenter), spacers=[0,3,6,8])
 
         saveInstButton = QPushButton(text="Save...")
         editLayout.addWidget(saveInstButton, alignment=QtCore.Qt.AlignmentFlag.AlignHCenter)
@@ -269,6 +283,7 @@ class ImportSfxTab(MainTab):
             self.selectedChunk = item.sfxListEntry.sfxChunk
             self.selectedChannel = item.parent()
             self.init_define_rows(item.sfxListEntry)
+            self.init_inst_rows(self.selectedChunk.get_instrument_commands())
 
         self.toggle_all_options()
         self.update_sound_name()

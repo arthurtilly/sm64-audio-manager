@@ -49,6 +49,8 @@ class ReferenceCommand:
         else:
             self.resolved = True
 
+    def __repr__(self):
+        return self.get_str()
 
     # Get the string representation of the command
     def get_str(self):
@@ -81,14 +83,24 @@ class ReferenceCommand:
             else:
                 raise ValueError("Error: Could not find chunk " + self.reference)
 
+class BankCommand:
+    def __init__(self, bank):
+        self.bank = bank
+
+    #def __repr__(self):
+    #    return self.get_str()
+
+    def get_str(self):
+        return "chan_setbank %d" % self.bank
+
 class InstrCommand:
     def __init__(self, isLayer, instrument):
         self.isLayer = isLayer
         self.bank = None
         self.instrument = instrument
 
-    def __repr__(self):
-        return self.get_str()
+    # def __repr__(self):
+    #     return self.get_str()
 
     def get_str(self):
         if (self.isLayer):
@@ -146,7 +158,11 @@ class SequencePlayerChunk:
                 return not hasReturn
         # Check if line is an instrument command
         if lineSplit[0] == "layer_setinstr" or lineSplit[0] == "chan_setinstr":
-            self.lines.append(InstrCommand(lineSplit[0] == "layer_setinstr", int(lineSplit[1], 0)))
+            if int(lineSplit[1], 0) < 0x7F: # 7F and up are special cases
+                self.lines.append(InstrCommand(lineSplit[0] == "layer_setinstr", int(lineSplit[1], 0)))
+                return False
+        elif lineSplit[0] == "chan_setbank":
+            self.lines.append(BankCommand(int(lineSplit[1], 0)))
             return False
         # If not, just add the line as a string
         self.lines.append(line)
@@ -163,7 +179,7 @@ class SequencePlayerChunk:
                     line.reference.type = referenceCommands[line.commandID][4]
 
     # Resolve instrument commands
-    def resolve_instruments(self, bank=None, checked=None):
+    def resolve_instruments(self, bankcmd=None, checked=None):
         # Recursion guard
         if checked is None: checked = []
         if self in checked: return set()
@@ -174,16 +190,13 @@ class SequencePlayerChunk:
             if type(line) == ReferenceCommand:
                 # Check for any reference commands that point to layers
                 if line.reference is not None and line.reference is not self and referenceCommands[line.commandID][4] == CHUNK_TYPE_LAYER:
-                    line.reference.resolve_instruments(bank, checked)
+                    line.reference.resolve_instruments(bankcmd, checked)
                     checkedChildren.add(line.reference)
             elif type(line) == InstrCommand:
-                if bank is not None:
-                    line.bank = bank
-            else:
-                lineSplit = line.split(" ")
-                # Check for bank command
-                if lineSplit[0] == "chan_setbank":
-                    bank = int(lineSplit[1], 0)
+                if bankcmd is not None:
+                    line.bank = bankcmd
+            elif type(line) == BankCommand:
+                bankcmd = line
 
         # Children that do not have reference commands are fallthrough
         # so resolve at the end
@@ -191,7 +204,7 @@ class SequencePlayerChunk:
             return
         for child in self.children:
             if child not in checkedChildren:
-                child.resolve_instruments(bank, checked)
+                child.resolve_instruments(bankcmd, checked)
         
     def get_instrument_commands(self, checked=None):
         # Recursion guard
@@ -210,7 +223,7 @@ class SequencePlayerChunk:
         return list(commands)
         
     def get_instrument_references(self):
-        return [(instCommand.bank, instCommand.instrument) for instCommand in self.get_instrument_commands()]
+        return [(instCommand.bank.bank, instCommand.instrument) for instCommand in self.get_instrument_commands()]
 
 @dataclass
 class ChannelEntry:
@@ -499,4 +512,5 @@ def get_command_id(cmd):
 # chunkDict = ChunkDictionary("U:/home/arthur/HackerSM64")
 # sound = ".sound_menu_coin_its_a_me_mario"
 
-# print(chunkDict.dictionary[sound].get_instrument_references())
+# for cmd in chunkDict.dictionary[sound].get_instrument_commands():
+#     print(cmd.get_str(), cmd.bank, cmd.bank.bank)
