@@ -496,6 +496,23 @@ class ImportSfxTab(MainTab):
         layout.addWidget(defineFrame)
         defineFrame.setFrameShape(QFrame.Shape.StyledPanel)
 
+        continuousLayout = new_widget(self.defineLayout, QHBoxLayout)
+        continuousLayout.addWidget(QLabel(text="Continuous:"))
+        self.continuousCheckbox = QCheckBox()
+        continuousLayout.addWidget(self.continuousCheckbox)
+        fix_checkbox_palette(self.continuousCheckbox)
+        self.continuousCheckbox.stateChanged.connect(self.continuous_checkbox_changed)
+
+        # Orange warning message
+        self.continuousWarningLabel = QLabel(text="")
+        # Set color
+        palette = self.continuousWarningLabel.palette()
+        palette.setColor(QPalette.ColorRole.WindowText, COLOR_ORANGE)
+        self.continuousWarningLabel.setPalette(palette)
+
+        continuousLayout.addStretch(1)
+        continuousLayout.addWidget(self.continuousWarningLabel)
+
         self.defineTable = GuiDynamicTable(self.defineLayout, self.add_define_row, noRowsWidget = QLabel(text="This sound has no defines...", alignment=QtCore.Qt.AlignmentFlag.AlignCenter), spacers=[])
 
         # Two buttons for adding and saving
@@ -515,18 +532,23 @@ class ImportSfxTab(MainTab):
 
     # Parse string of flags into list
     def parse_flags(self, flags):
+        self.continuousCheckbox.blockSignals(True)
         if flags == "0":
-            self.curSoundIsDiscrete = False
+            self.continuousCheckbox.setChecked(True)
+            self.continuousCheckbox.blockSignals(False)
             return []
         flagList = [flag.strip() for flag in flags.split("|")]
         if "SOUND_DISCRETE" in flagList:
-            self.curSoundIsDiscrete = True
+            self.continuousCheckbox.setChecked(False)
             flagList.remove("SOUND_DISCRETE")
+        else:
+            self.continuousCheckbox.setChecked(True)
+        self.continuousCheckbox.blockSignals(False)
         return flagList
 
     # Turn list back into string
     def construct_flags(self, flagList):
-        if self.curSoundIsDiscrete:
+        if not self.continuousCheckbox.isChecked():
             flagList.append("SOUND_DISCRETE")
         if len(flagList) == 0:
             return "0"
@@ -540,6 +562,11 @@ class ImportSfxTab(MainTab):
 
         bankIndex = 0 if curRow[3] is None else curRow[3].currentIndex()
         self.currentDefines[index][4] = self.currentDefines[index][3][bankIndex]
+
+    def continuous_checkbox_changed(self):
+        for i in range(len(self.currentDefines)):
+            self.update_define_data(i)
+        self.update_continuous_warning()
 
     # Add a new define row
     def add_define_row(self, grid, data, index):
@@ -638,6 +665,16 @@ class ImportSfxTab(MainTab):
         self.currentDefines.append([self.get_new_define_name(), 128, "0", channel.banks, channel.banks[0]])
         self.defineTable.append_new_row(self.currentDefines[-1])
 
+    def update_continuous_warning(self):
+        checkboxContinuous = self.continuousCheckbox.isChecked()
+        chunkContinuous = self.selectedChunk.check_loop()
+        if checkboxContinuous == chunkContinuous:
+            self.continuousWarningLabel.setText("")
+        elif checkboxContinuous:
+            self.continuousWarningLabel.setText("Warning: The sound effect's miniseq has no loop!")
+        else:
+            self.continuousWarningLabel.setText("Warning: The sound effect's miniseq has a loop!")
+
     def init_define_rows(self, sfxListEntry=None):
         if sfxListEntry is None:
             self.defineTable.clear_rows()
@@ -657,6 +694,9 @@ class ImportSfxTab(MainTab):
             for sfx in sfxs:
                 self.currentDefines.append([sfx.define, sfx.priority, sfx.flags, self.selectedChannel.banks, bank])
         self.defineTable.create_rows(self.currentDefines)
+        if len(self.currentDefines) == 0:
+            self.continuousCheckbox.setChecked(self.selectedChunk.check_loop())
+        self.update_continuous_warning()
 
     # Open dialog window for setting flags
     def define_flags_open_window(self, index, button):

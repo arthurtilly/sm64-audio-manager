@@ -229,6 +229,28 @@ class SequencePlayerChunk:
                 references.append((instCommand.bank.bank, instCommand.instrument))
         return references
 
+    # Determine if the chunk has an infinite loop. Used to verify if sound is continuous
+    def check_loop(self, checked=None):
+        if checked is None: checked = []
+        if self in checked: return True
+        checked.append(self)
+
+        checkedChildren = set()
+        for line in self.lines:
+            if type(line) == ReferenceCommand:
+                if line.reference is not None:
+                    if line.reference.check_loop(checked[:]):
+                        return True
+                    checkedChildren.add(line.reference)
+
+        # Also check fallthrough children
+        for child in self.children:
+            if child not in checkedChildren:
+                if child.check_loop(checked[:]):
+                    return True
+        return False
+
+
 @dataclass
 class ChannelEntry:
     table: SequencePlayerChunk    # Table chunk
@@ -514,7 +536,6 @@ def get_command_id(cmd):
 
 
 # chunkDict = ChunkDictionary("U:/home/arthur/HackerSM64")
-# sound = ".sound_menu_coin_its_a_me_mario"
 
-# for cmd in chunkDict.dictionary[sound].get_instrument_commands():
-#     print(cmd.get_str(), cmd.bank, cmd.bank.bank)
+# for name, chunk in chunkDict.dictionary.items():
+#     print(name, chunk.children, chunk.check_loop())
