@@ -66,7 +66,8 @@ def add_centered_button_to_layout(layout, text, func):
 
     newLayout.addStretch(1)
     button = QPushButton(text=text)
-    button.clicked.connect(func)
+    if func is not None:
+        button.clicked.connect(func)
     button.setSizePolicy(QSizePolicy.Policy.Fixed, QSizePolicy.Policy.Fixed)
     newLayout.addWidget(button)
     newLayout.addStretch(1)

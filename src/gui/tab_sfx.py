@@ -156,7 +156,7 @@ class ImportSfxTab(MainTab):
         optionsLayout.addStretch(1)
 
         self.toggleRequiresChannel = (soundFrame, addEntriesLabel)
-        self.toggleRequiresSound = (defineFrame, soundDefinesLabel, self.deleteButton)
+        self.toggleRequiresSound = (defineFrame, soundDefinesLabel, self.deleteButton, editFrame, editLabel)
         self.toggle_all_options()
 
     
@@ -218,6 +218,15 @@ class ImportSfxTab(MainTab):
                 self.instrument_dropdown_set_values(instrumentDropdown)
                 instrumentDropdown.setCurrentIndex(0)
 
+    def sfx_preview_sample(self, bank, instrument, tuning=0):
+        sampleBank = get_sample_bank(self.decomp, bank)
+        instData = get_instrument_data(self.decomp, bank, instrument)
+        sampleName = instData.sound.name + ".aiff"
+        sampleTuning = instData.sound.tuning + tuning
+
+        samplePath = os.path.join(self.decomp, "sound", "samples", sampleBank, sampleName)
+        play_sound_tuned(samplePath, sampleTuning)
+
     def play_instrument(self, index):
         instrumentDropdown = self.instTable.rows[index][1]
         bankDropdown = instrumentDropdown.bankDropdown
@@ -225,13 +234,13 @@ class ImportSfxTab(MainTab):
         bank = bankDropdown.currentText()
         instrument = instrumentDropdown.currentText()
 
-        sampleBank = get_sample_bank(self.decomp, bank)
-        instData = get_instrument_data(self.decomp, bank, instrument)
-        sampleName = instData.sound.name + ".aiff"
-        sampleTuning = instData.sound.tuning
+        self.sfx_preview_sample(bank, instrument)
 
-        samplePath = os.path.join(self.decomp, "sound", "samples", sampleBank, sampleName)
-        play_sound_tuned(samplePath, sampleTuning)
+    def play_instrument_replace(self):
+        bank = self.replaceBankDropdown.currentText()
+        instrument = self.replaceInstrumentDropdown.currentText()
+
+        self.sfx_preview_sample(bank, instrument, self.replaceTuning.value())
 
     def add_instrument_row(self, grid, data, index):
         bank = None
@@ -318,8 +327,49 @@ class ImportSfxTab(MainTab):
 
         replaceFrame = QFrame()
         replaceLayout = QVBoxLayout()
+        replaceLayout.setSpacing(5)
         replaceFrame.setLayout(replaceLayout)
         editTabs.addTab(replaceFrame, "Replace...")
+
+        instrumentLayout = new_widget(replaceLayout, QHBoxLayout)
+        instrumentLayout.setContentsMargins(0, 0, 0, 0)
+        instrumentLayout.addStretch(1)
+        instrumentLayout.addWidget(QLabel(text="Bank:"))
+        self.replaceBankDropdown = QComboBox()
+        self.replaceBankDropdown.addItems(get_sfx_banks(self.decomp))
+        instrumentLayout.addWidget(self.replaceBankDropdown)
+
+        instrumentLayout.addStretch(1)
+        instrumentLayout.addWidget(QLabel(text="Instrument:"))
+        self.replaceInstrumentDropdown = QComboBox()
+        self.replaceInstrumentDropdown.bankDropdown = self.replaceBankDropdown
+        self.instrument_dropdown_set_values(self.replaceInstrumentDropdown)
+        self.replaceBankDropdown.currentIndexChanged.connect(lambda: self.instrument_dropdown_set_values(self.replaceInstrumentDropdown))
+        instrumentLayout.addWidget(self.replaceInstrumentDropdown)
+
+        instrumentLayout.addStretch(1)
+        replacePlayButton = QPushButton(text="Play...")
+        instrumentLayout.addWidget(replacePlayButton)
+        replacePlayButton.clicked.connect(self.play_instrument_replace)
+        instrumentLayout.addStretch(1)
+
+        parameterLayout = new_widget(replaceLayout, QHBoxLayout)
+        parameterLayout.setContentsMargins(0, 0, 0, 0)
+        parameterLayout.addStretch(1)
+        parameterLayout.addWidget(QLabel(text="Tuning:"))
+        self.replaceTuning = QSpinBox()
+        self.replaceTuning.setRange(-32, 32)
+        self.replaceTuning.setValue(0)
+        parameterLayout.addWidget(self.replaceTuning)
+        parameterLayout.addStretch(1)
+
+        parameterLayout.addWidget(QLabel(text="Continuous:"))
+        self.replaceContinuousCheckbox = QCheckBox()
+        parameterLayout.addWidget(self.replaceContinuousCheckbox)
+        fix_checkbox_palette(self.replaceContinuousCheckbox)
+        parameterLayout.addStretch(1)
+
+        add_centered_button_to_layout(replaceLayout, "Replace!", None)
 
         return editTabs
 
