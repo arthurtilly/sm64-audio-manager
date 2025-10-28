@@ -77,3 +77,13 @@ def process_aiff_file(input, outputFolder, outputName=None, loop=True, loopBegin
         outputtedFiles.append(output)
 
     return outputtedFiles
+
+def get_aiff_duration(path):
+    try:
+        with sf.SoundFile(path) as snd:
+            nframes = len(snd)
+            samplerate = snd.samplerate
+            duration = nframes / samplerate
+            return duration
+    except sf.SoundFileError:
+        raise AudioManagerException("Invalid AIFF file")

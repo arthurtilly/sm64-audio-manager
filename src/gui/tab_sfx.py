@@ -12,6 +12,7 @@ from misc import *
 from sfx import *
 from seq00 import *
 from soundbank import *
+from aiff import *
 
 bankNames = (
     "Action",
@@ -218,13 +219,17 @@ class ImportSfxTab(MainTab):
                 self.instrument_dropdown_set_values(instrumentDropdown)
                 instrumentDropdown.setCurrentIndex(0)
 
-    def sfx_preview_sample(self, bank, instrument, tuning=0):
+    def get_sample_of_instrument(self, bank, instrument):
         sampleBank = get_sample_bank(self.decomp, bank)
         instData = get_instrument_data(self.decomp, bank, instrument)
         sampleName = instData.sound.name + ".aiff"
-        sampleTuning = instData.sound.tuning + tuning
-
+        sampleTuning = instData.sound.tuning
         samplePath = os.path.join(self.decomp, "sound", "samples", sampleBank, sampleName)
+        return samplePath, sampleTuning
+
+    def sfx_preview_sample(self, bank, instrument, tuning=0):
+        samplePath, sampleTuning = self.get_sample_of_instrument(bank, instrument)
+        sampleTuning += tuning
         play_sound_tuned(samplePath, sampleTuning)
 
     def play_instrument(self, index):
@@ -309,6 +314,40 @@ class ImportSfxTab(MainTab):
         except AudioManagerException as e:
             self.set_info_message("Error: " + str(e), COLOR_RED)
 
+    def replace_sound(self):
+        try:
+            soundName = self.selectedChunk.name
+
+            bankName = self.replaceBankDropdown.currentText()
+            instName = self.replaceInstrumentDropdown.currentText()
+
+            bank = self.replaceBankDropdown.currentIndex()
+            instruments = get_instruments(self.decomp, bankName)
+            instrument = instruments.index(instName)
+
+            tuning = self.replaceTuning.value()
+            volume = self.replaceVolume.value()
+            continuous = self.replaceContinuousCheckbox.isChecked()
+
+            # Get duration from sample, in seconds
+            samplePath, _ = self.get_sample_of_instrument(bankName, instName)
+            duration = get_aiff_duration(samplePath)
+
+            newChunk = create_new_sound(self.chunkDictionary, soundName, bank, instrument, duration, tuning, volume, continuous)
+            self.mainWindow.write_seq00()
+
+            # Update selected chunk
+            self.selectedChunk = newChunk
+            item = self.sfxList.currentItem()
+            item.sfxListEntry.sfxChunk = newChunk
+
+            self.sfxlist_selection_changed()
+            self.continuousCheckbox.setChecked(continuous)
+
+            self.set_info_message("Sound replaced!", COLOR_GREEN)
+        except AudioManagerException as e:
+            self.set_info_message("Error: " + str(e), COLOR_RED)
+
     def create_edit_frame(self, layout):
         # Contains two tabs, one for editing sound properties and one for replacing the sound data
         editTabs = QTabWidget()
@@ -356,11 +395,19 @@ class ImportSfxTab(MainTab):
         parameterLayout = new_widget(replaceLayout, QHBoxLayout)
         parameterLayout.setContentsMargins(0, 0, 0, 0)
         parameterLayout.addStretch(1)
+
         parameterLayout.addWidget(QLabel(text="Tuning:"))
         self.replaceTuning = QSpinBox()
         self.replaceTuning.setRange(-32, 32)
         self.replaceTuning.setValue(0)
         parameterLayout.addWidget(self.replaceTuning)
+        parameterLayout.addStretch(1)
+
+        parameterLayout.addWidget(QLabel(text="Volume:"))
+        self.replaceVolume = QSpinBox()
+        self.replaceVolume.setRange(0, 127)
+        self.replaceVolume.setValue(127)
+        parameterLayout.addWidget(self.replaceVolume)
         parameterLayout.addStretch(1)
 
         parameterLayout.addWidget(QLabel(text="Continuous:"))
@@ -369,16 +416,13 @@ class ImportSfxTab(MainTab):
         fix_checkbox_palette(self.replaceContinuousCheckbox)
         parameterLayout.addStretch(1)
 
-        add_centered_button_to_layout(replaceLayout, "Replace!", None)
+        add_centered_button_to_layout(replaceLayout, "Replace!", self.replace_sound)
 
         return editTabs
 
     def toggle_all_options(self):
         self.toggle_options(self.toggleRequiresChannel, self.selectedChannel is not None)
         self.toggle_options(self.toggleRequiresSound, self.selectedChunk is not None)
-
-    def sound_name_in_use(self, name):
-        return self.chunkDictionary.dictionary.get("." + name) is not None
 
     # Determine default name for sound based on selected chunk
     def update_sound_name(self):
@@ -392,7 +436,7 @@ class ImportSfxTab(MainTab):
                 name = "sound_new_1"
         else:
             name = self.selectedChunk.name[1:]
-        self.soundName.setText(get_new_name(name, self.sound_name_in_use))
+        self.soundName.setText(get_new_name(name, self.chunkDictionary.sound_name_in_use))
 
     # When a new sequence is selected, update some of the info on the right
     def sfxlist_selection_changed(self):

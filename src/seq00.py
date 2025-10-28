@@ -126,13 +126,6 @@ class SequencePlayerChunk:
         self.children.append(child)
         child.parents.append(self)
 
-    def get_children_recursive(self):
-        children = []
-        for child in self.children:
-            children.append(child)
-            children.extend(child.get_children_recursive())
-        return children
-
     # Add line, return if it means the end of the chunk
     def add_line(self, line):
         # Check if line contains a reference command
@@ -487,15 +480,42 @@ class ChunkDictionary:
         tableChunk = self.bankTable[channelID].table
 
         newChunk = SequencePlayerChunk(chunkName, CHUNK_TYPE_CHANNEL)
-        newChunk.add_line("chan_end")
+        newChunk.lines.append(ReferenceCommand(get_command_id("chan_end")))
         self.dictionary[chunkName] = newChunk
 
         # Insert new sound_ref line into channel table
         newLine = ReferenceCommand(get_command_id("sound_ref"), None, newChunk)
         tableChunk.lines.insert(soundID, newLine)
+        tableChunk.add_child(newChunk)
 
         self.fix_hardcoded_ids(tableChunk, soundID, 1)
         return newChunk
+    
+    def replace_sound(self, oldName, newChunk, additionalChunks):
+        keyOrder = list(self.dictionary.keys())
+        selectedChunk = self.dictionary[oldName]
+
+        # Update all parents to point to new chunk
+        for parent in selectedChunk.parents:
+            for i, line in enumerate(parent.lines):
+                if type(line) == ReferenceCommand:
+                    if line.reference is selectedChunk:
+                        parent.lines[i].reference = newChunk
+            parent.add_child(newChunk)
+            newChunk.parents.append(parent)
+
+        # Remove old chunk
+        selectedChunk.parents = []
+        self.delete_chunk(selectedChunk)
+
+        # Preserve order
+        self.dictionary[oldName] = newChunk
+        keyIndex = keyOrder.index(oldName)
+        for addChunk in additionalChunks:
+            self.dictionary[addChunk.name] = addChunk
+            keyIndex += 1
+            keyOrder.insert(keyIndex, addChunk.name)
+        self.dictionary = {key: self.dictionary[key] for key in keyOrder if key in self.dictionary}
 
     def change_sound_name(self, oldName, newName):
         if newName in self.dictionary:
@@ -525,6 +545,9 @@ class ChunkDictionary:
     def insert_instrument(self, bank, newInst):
         self.update_instruments(bank, newInst, 1)
 
+    def sound_name_in_use(self, name):
+        return self.dictionary.get("." + name) is not None
+
 def line_is_command(line, cmd):
     return type(line) == ReferenceCommand and referenceCommands[line.commandID][0] == cmd
 
@@ -534,8 +557,45 @@ def get_command_id(cmd):
             return i
     return None
 
+def create_new_sound(chunkdict, name, bank, inst, duration, tuning, volume, continuous):
+    chan = SequencePlayerChunk(name, CHUNK_TYPE_CHANNEL)
+    bankcmd = BankCommand(bank)
+    instcmd = InstrCommand(False, inst)
+    instcmd.bank = bankcmd
+
+    if name.startswith(".sound_"):
+        base = name[7:]
+    else:
+        base = name[1:]
+    layerName = "." + get_new_name("layer_" + base, chunkdict.sound_name_in_use)
+
+    layer = SequencePlayerChunk(layerName, CHUNK_TYPE_LAYER)
+    layers = [layer]
+    if continuous:
+        layer_loop = SequencePlayerChunk(get_new_name(layerName + "_loop", chunkdict.sound_name_in_use), CHUNK_TYPE_LAYER)
+        layers.append(layer_loop)
+        layer.lines.append("layer_somethingon")
+        layer.lines.append(ReferenceCommand(get_command_id("layer_jump"), None, layer_loop))
+        layer.add_child(layer_loop)
+
+        layer_loop.lines.append(f"layer_note1 {tuning+39}, 0x{int(duration*96):02X}, {volume}")
+        layer_loop.lines.append(ReferenceCommand(get_command_id("layer_jump"), None, layer_loop))
+        layer_loop.add_child(layer_loop)
+    else:
+        layer.lines.append(f"layer_note1 {tuning+39}, 0x{int(duration*96):02X}, {volume}")
+        layer.lines.append(ReferenceCommand(get_command_id("layer_end")))
+
+    chan.lines.append(bankcmd)
+    chan.lines.append(instcmd)
+    chan.lines.append(ReferenceCommand(get_command_id("chan_setlayer"), "0,", layer))
+    chan.add_child(layer)
+    chan.lines.append(ReferenceCommand(get_command_id("chan_end")))
+
+    chunkdict.replace_sound(name, chan, layers)
+    return chan
 
 # chunkDict = ChunkDictionary("U:/home/arthur/HackerSM64")
 
-# for name, chunk in chunkDict.dictionary.items():
-#     print(name, chunk.children, chunk.check_loop())
+# create_new_sound(chunkDict, ".sound_menu_coin_its_a_me_mario", ".layer_test", 5, 5, 1, 0, 127, True)
+# chunkDict.trim_chunks()
+# chunkDict.reconstruct_sequence_player()

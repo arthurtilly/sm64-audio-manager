@@ -86,10 +86,10 @@ class MainWindow(QWidget):
         self.layout.setStretchFactor(self.tabWidget, 1)
         self.tabs = []
 
-        self.add_tab(StreamedMusicTab, "Streamed Music")
         self.add_tab(ImportSfxTab, "Sound Effects")
         self.add_tab(SoundbankTab, "Instruments")
         self.add_tab(ConvertAudioTab, "Convert Audio")
+        self.add_tab(StreamedMusicTab, "Streamed Music")
 
 
     # Add a new tab to the main page notebook
@@ -104,6 +104,7 @@ class MainWindow(QWidget):
             tab.set_audio_file(path)
 
     def write_seq00(self):
+        self.chunkDict.trim_chunks()
         self.chunkDict.reconstruct_sequence_player()
 
 

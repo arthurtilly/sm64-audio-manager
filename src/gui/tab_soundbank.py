@@ -43,6 +43,7 @@ class SoundbankTab(MainTab):
         instrumentFrame = self.create_instrument_frame(optionsLayout)
 
         self.soundFrameWidgets = create_sound_frame(optionsLayout, self.set_audio_file, False)
+        self.soundFrameWidgets.doLoop.setChecked(False)
         self.chosenSamplePath = None
 
         importButtonLayout = new_widget(self.soundFrameWidgets.soundFrame.layout(), QHBoxLayout)
@@ -398,9 +399,12 @@ class SoundbankTab(MainTab):
                 newName = get_new_name("inst0", instrumentNameUsed)
                 self.selectedInstrument.oldtext = newName
                 self.selectedInstrument.setText(0, newName)
+                # Mark as editable
+                self.selectedInstrument.setFlags(self.selectedInstrument.flags() | QtCore.Qt.ItemFlag.ItemIsEditable)
 
             save_instrument_data(self.decomp, self.selectedSoundbank.text(0), self.selectedInstrument.text(0), instData)
             self.update_sample_data()
+            self.set_info_message("Instrument saved!", COLOR_GREEN)
         except AudioManagerException as e:
             self.set_info_message("Error: " + str(e), COLOR_RED)
 

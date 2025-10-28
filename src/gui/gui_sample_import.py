@@ -100,12 +100,14 @@ def create_sound_frame(layout, setAudioFile, includeSize):
     return soundFrameWidgets
 
 # Enable or disable loop settings
-def sound_frame_loop_row_set_enabled(soundFrameWidgets, enabled):
-    for widget in soundFrameWidgets.loopWidgets:
-        widget.setEnabled(enabled)
-    soundFrameWidgets.doLoop.setEnabled(enabled)
 
 def loop_checkbutton_pressed(checkbox, soundFrameWidgets):
+    for widget in soundFrameWidgets.loopWidgets:
+        widget.setEnabled(checkbox.isChecked())
+
+def sound_frame_loop_row_set_enabled(soundFrameWidgets, enabled):
+    soundFrameWidgets.doLoop.setEnabled(enabled)
+    checkbox = soundFrameWidgets.doLoop
     for widget in soundFrameWidgets.loopWidgets:
         widget.setEnabled(checkbox.isChecked())
 
