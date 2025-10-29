@@ -1,4 +1,4 @@
-from gui_misc import *
+from .gui_misc import *
 append_parent_dir()
 from misc import *
 

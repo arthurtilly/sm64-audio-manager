@@ -1,4 +1,4 @@
-from gui_misc import *
+from .gui_misc import *
 
 from dataclasses import dataclass
 import soundfile as sf

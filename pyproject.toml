@@ -1,0 +1,12 @@
+[project]
+name = "sm64-audio-manager"
+version = "0.1.0"
+description = "GUI and command line tool for importing and managing streamed audio sequences in the SM64 decompilation."
+readme = "README.md"
+requires-python = ">=3.12"
+dependencies = [
+    "av>=16.0.1",
+    "playsound3>=3.2.8",
+    "pyqt6>=6.10.0",
+    "soundfile>=0.13.1",
+]
