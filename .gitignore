@@ -1,6 +1,7 @@
 *.pyc
 *.aiff
 *.json
+.venv/
 
 # We don't need these features for now...
 .python-version
