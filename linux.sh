@@ -18,6 +18,7 @@ if ! command_exists python; then
         sudo apt install -y python3
 
         # Install uv from python pip, then we can continue
+        python3 -m pip install uv
     elif command_exists pacman; then
         # Install Python for Arch Linux
         sudo pacman -Sy --noconfirm uv
