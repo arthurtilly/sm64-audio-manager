@@ -238,7 +238,10 @@ class ConvertAudioTab(MainTab):
 
         in_stream = inputFile.streams.audio[0]
         out_stream = outputFile.add_stream("pcm_s16be", outputSampleRate)
-        out_stream.channels = 1 if self.monoCheckbox.isChecked() else in_stream.channels
+
+        codec_ctx = out_stream.codec_context
+        codec_ctx.sample_rate = outputSampleRate
+        codec_ctx.channels = 1 if self.monoCheckbox.isChecked() else in_stream.channels
 
         # Resample audio
         resampler = av.AudioResampler(
