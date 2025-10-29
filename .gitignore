@@ -1,3 +1,7 @@
 *.pyc
 *.aiff
 *.json
+
+# We don't need these features for now...
+.python-version
+uv.lock
