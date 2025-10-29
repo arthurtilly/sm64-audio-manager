@@ -23,6 +23,8 @@ def validate_decomp(path):
     # Check if include/seq_ids.h exists
     if not os.path.exists(os.path.join(path, "include", "seq_ids.h")):
         raise AudioManagerException("Invalid decomp folder - no include/seq_ids.h")
+    if not os.path.exists(os.path.join(path, "include", "sounds.h")):
+        raise AudioManagerException("Invalid decomp folder - no include/sounds.h")
 
 
 # Determine if a string is a valid symbol or file name
