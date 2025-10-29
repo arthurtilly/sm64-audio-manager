@@ -18,11 +18,15 @@ if %errorlevel% neq 0 (
 )
 
 
-REM Install Python dependencies
-python -m pip install PyQt6
-python -m pip install av
-python -m pip install soundfile
-python -m pip install playsound3
+REM Install uv
+python -m pip install uv
+
+REM create the venv and activate it
+python -m uv venv --clear
+call ".venv/bin/activate"
+
+REM sync dependencies
+python -m uv sync
 
 REM Run GUI
-python src/gui/gui_main.py
+python -m uv run main.py
