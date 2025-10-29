@@ -29,4 +29,4 @@ REM sync dependencies
 python -m uv sync
 
 REM Run GUI
-python -m uv run main.py
+python -m uv run src/gui/gui_main.py

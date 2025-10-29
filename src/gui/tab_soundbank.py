@@ -2,9 +2,9 @@ from PyQt6.QtWidgets import *
 from PyQt6.QtGui import *
 from PyQt6 import QtCore
 
-from .gui_misc import *
-from .gui_sample_import import *
-from .gui_dynamic_table import *
+from gui_misc import *
+from gui_sample_import import *
+from gui_dynamic_table import *
 append_parent_dir()
 from misc import *
 from soundbank import *

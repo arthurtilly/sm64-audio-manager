@@ -13,10 +13,10 @@ else:
 if "decomp" in persistent:
     decomp = persistent["decomp"]
 
-from .tab_music import *
-from .tab_convert import *
-from .tab_sfx import *
-from .tab_soundbank import *
+from tab_music import *
+from tab_convert import *
+from tab_sfx import *
+from tab_soundbank import *
 
 from PyQt6.QtWidgets import *
 from PyQt6.QtGui import *

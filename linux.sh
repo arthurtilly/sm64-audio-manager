@@ -44,7 +44,7 @@ source .venv/bin/activate
 uv sync
 
 # Run the GUI
-uv run main.py
+uv run src/gui/gui_main.py
 
 # Clean up venv after
 deactivate
