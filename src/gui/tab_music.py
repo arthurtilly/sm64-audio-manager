@@ -17,6 +17,7 @@ class StreamedMusicTab(MainTab):
     def create_page(self):
         self.sequences = scan_all_sequences(self.decomp)
         self.currentSeqId = 0
+        self.chosenSamplePath = None
 
         self.layout = QHBoxLayout()
         self.layout.setContentsMargins(0, 0, 0, 0)
