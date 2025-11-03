@@ -100,7 +100,7 @@ def create_soundbank(decomp, name, samples):
         "sample_bank": "streamed_audio",
         "envelopes": {
             "envelope": [
-                [2, 32700],
+                [1, 32700],
                 "hang"
             ]            
         },

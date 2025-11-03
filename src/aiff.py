@@ -19,7 +19,7 @@ def add_loop_to_aiff(aiffPath, loopBegin, loopEnd):
     markChunk = struct.pack(
         ">4slHHL6sHL4s",
         b"MARK", # ckID
-        26, # ckSize
+        24, # ckSize
         2, # numMarkers
         1, loopBegin, b"\x05start", # marker1 - id, position, name
         2, loopEnd, b"\x03end") # marker2 - id, position, name
