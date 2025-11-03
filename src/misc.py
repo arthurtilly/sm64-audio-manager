@@ -1,7 +1,7 @@
 import os
-import aifc
+import soundfile as sf
 import json
-
+import re
 
 class AudioManagerException(Exception):
     pass
@@ -23,6 +23,8 @@ def validate_decomp(path):
     # Check if include/seq_ids.h exists
     if not os.path.exists(os.path.join(path, "include", "seq_ids.h")):
         raise AudioManagerException("Invalid decomp folder - no include/seq_ids.h")
+    if not os.path.exists(os.path.join(path, "include", "sounds.h")):
+        raise AudioManagerException("Invalid decomp folder - no include/sounds.h")
 
 
 # Determine if a string is a valid symbol or file name
@@ -31,7 +33,46 @@ def validate_name(name, whichName):
     for char in name:
         if char not in allowedCharacters:
             raise AudioManagerException("Invalid character '%s' in %s" % (char, whichName))
+    if len(name) == 0:
+        raise AudioManagerException("%s cannot be empty" % whichName.capitalize())
 
+def validate_int(value, field):
+    try:
+        return int(value)
+    except ValueError:
+        raise AudioManagerException(f"{field} must be an integer")
+
+def validate_float(value, field):
+    try:
+        return float(value)
+    except ValueError:
+        raise AudioManagerException(f"{field} must be a number")
+
+def load_json(path): # strips // comments
+    with open(path, 'r') as f:
+        content = f.read()
+    content = re.sub(r'//.*$', '', content, flags=re.MULTILINE)
+    content = re.sub("/\\*.*?\\*/", "", content, flags=re.DOTALL)
+    return json.loads(content)
+
+def get_new_name(name, inUseFunc, prefix=None):
+    # Strip numbers from right side of name
+    if prefix is not None:
+        if not name.startswith(prefix):
+            name = prefix + name
+    if not inUseFunc(name):
+        return name
+    num = ""
+    while name[-1].isdigit():
+        num = name[-1] + num
+        name = name[:-1]
+    # Determine new name
+    i = int(num) if num else 2
+    while True:
+        newName = name + str(i)
+        if not inUseFunc(newName):
+            return newName
+        i += 1
 
 def check_names_for_duplicates(decomp, seqId, seqName=None, soundbankName=None, sampleName=None):
     # Check if sequence name is a duplicate
@@ -65,9 +106,8 @@ def calculate_loops(file, loopBeginSamples, loopBeginMilli, loopEndSamples, loop
     begin = loopBeginSamples
     end = loopEndSamples
 
-    aiffFile = aifc.open(file, "r")
-    sampleRate = aiffFile.getframerate()
-    aiffFile.close()
+    with sf.SoundFile(file) as snd:
+        sampleRate = snd.samplerate
 
     if loopBeginMilli is not None:
         begin = int(sampleRate * loopBeginMilli / 1000)
@@ -99,10 +139,10 @@ def calculate_panning(pan, numChannels):
  
 # Estimate the size of an audio file
 def estimate_audio_size(audioPath):
-    aiffFile = aifc.open(audioPath, "r")
-    nframes = aiffFile.getnframes()
-    size = nframes * aiffFile.getnchannels() * 9 / 16
-    aiffFile.close()
+    with sf.SoundFile(audioPath) as snd:
+        nframes = len(snd)  # same as snd.frames
+        nchannels = snd.channels
+    size = nframes * nchannels * 9 / 16
     return size / 1048576
 
 
@@ -124,8 +164,7 @@ def scan_all_sequences(decomp):
     seqIdsPath = os.path.join(decomp, "include", "seq_ids.h")
     seqTable = load_table(seqIdsPath, "enum SeqId")
 
-    with open(os.path.join(decomp, "sound", "sequences.json"), "r") as seqJson:
-        seqJsonData = json.load(seqJson)
+    seqJsonData = load_json(os.path.join(decomp, "sound", "sequences.json"))
 
     numSeqs = find_new_seq_id(seqJsonData) - 1
     allSeqs = [None] * numSeqs
@@ -139,7 +178,6 @@ def scan_all_sequences(decomp):
         allSeqs[seqId - 1] = (seqName[3:],seqTable[seqId][0])
 
     return allSeqs
-
 
 # Locate and load a C table from a file
 def load_table(tablePath, tableIdentifier):

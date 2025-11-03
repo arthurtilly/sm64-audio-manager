@@ -15,19 +15,15 @@ class ConvertAudioTab(MainTab):
 
         self.layout = QVBoxLayout()
         self.setLayout(self.layout)
+        self.layout.setContentsMargins(0, 0, 0, 0)
         self.layout.setSpacing(0)
         self.layout.addStretch(2)
 
-        # First line: Select sfx
-        selectSoundFileWidget = QWidget()
-        selectSoundFileLayout = QHBoxLayout()
-        selectSoundFileWidget.setLayout(selectSoundFileLayout)
-        self.layout.addWidget(selectSoundFileWidget)
-        
+        # Line 1: Select sfx
+        selectSoundFileLayout = new_widget(self.layout, QHBoxLayout)
         selectSoundFileLayout.addStretch(3)
     
         # Label
-        self.selectedSoundFile = None
         self.selectedFileLabel = QLabel(text="Selected audio file: None")
         selectSoundFileLayout.addWidget(self.selectedFileLabel)
 
@@ -41,12 +37,8 @@ class ConvertAudioTab(MainTab):
 
         selectSoundFileLayout.addStretch(3)
 
-        # 2nd line: Input format, length, sample rate and channels
-        inputFormatWidget = QWidget()
-        self.inputFormatLayout = QHBoxLayout()
-        inputFormatWidget.setLayout(self.inputFormatLayout)
-        self.layout.addWidget(inputFormatWidget)
-        self.inputFormatLayout.setSpacing(5)
+        # Line 2: Input format, length, sample rate and channels
+        self.inputFormatLayout = new_widget(self.layout, QHBoxLayout, spacing=5)
 
         self.inputLabelText = QLabel(text="Input format:")
         self.inputLabel = QLabel(text="-   ")
@@ -73,15 +65,12 @@ class ConvertAudioTab(MainTab):
 
         self.layout.addStretch(1)
 
-        # 3rd line: Output sample rate and mix to mono
+        # Line 3: Output sample rate and mix to mono
 
-        outputFormatWidget = QWidget()
-        self.outputFormatLayout = QHBoxLayout()
-        outputFormatWidget.setLayout(self.outputFormatLayout)
-        self.layout.addWidget(outputFormatWidget)
-
+        self.outputFormatLayout = new_widget(self.layout, QHBoxLayout)
         self.outputFormatLayout.addStretch(3)
         self.outputFormatLayout.addWidget(QLabel(text="Output sample rate:"), alignment=QtCore.Qt.AlignmentFlag.AlignRight)
+
         self.outputSampleRate = QLineEdit(text="")
         self.outputSampleRate.setFixedWidth(50)
         self.outputSampleRate.setValidator(QIntValidator(1, 100000))
@@ -94,19 +83,14 @@ class ConvertAudioTab(MainTab):
         self.monoCheckbox = QCheckBox(text="Mix down to mono?")
         self.outputFormatLayout.addWidget(self.monoCheckbox)
         self.monoCheckbox.stateChanged.connect(self.calculate_estimated_size)
-        palette = self.monoCheckbox.palette()
-        palette.setColor(QPalette.ColorRole.Base, self.palette().color(QPalette.ColorRole.Button))
-        self.monoCheckbox.setPalette(palette)
+        fix_checkbox_palette(self.monoCheckbox)
 
         self.outputFormatLayout.addStretch(3)
 
-        # 4th line: Output path
-        outputPathWidget = QWidget()
-        self.outputPathLayout = QHBoxLayout()
-        outputPathWidget.setLayout(self.outputPathLayout)
-        self.layout.addWidget(outputPathWidget)
-
+        # Line 4: Output path
+        self.outputPathLayout = new_widget(self.layout, QHBoxLayout)
         self.outputPathLayout.addStretch(1)
+
         self.outputPathLayout.addWidget(QLabel(text="Output path:"), alignment=QtCore.Qt.AlignmentFlag.AlignRight)
         self.outputPath = QLineEdit(text="")
         self.outputPath.setFixedWidth(300)
@@ -118,37 +102,27 @@ class ConvertAudioTab(MainTab):
         self.outputBrowseButton.setSizePolicy(QSizePolicy.Policy.Fixed, QSizePolicy.Policy.Fixed)
         self.outputPathLayout.addStretch(1)
 
-        # 5th line: Estimated ROM size
+        # Line 5: Estimated ROM size
         self.estimatedSizeLabel = QLabel(text="Estimated size in ROM: -")
         self.estimatedSizeLabel.setAlignment(QtCore.Qt.AlignmentFlag.AlignCenter)
         self.layout.addWidget(self.estimatedSizeLabel)
 
         self.layout.addStretch(1)
 
-        # 6th line: Convert button
-        convertWidget = QWidget()
-        convertLayout = QHBoxLayout()
-        convertWidget.setLayout(convertLayout)
-        self.layout.addWidget(convertWidget)
+        # Convert button
+        convertWidget, self.convertButton = add_centered_button_to_layout(self.layout, "Convert!", self.convert_pressed)
 
-        convertLayout.addStretch(1)
-        self.convertButton = QPushButton(text="Convert!")
-        self.convertButton.clicked.connect(self.convert_pressed)
-        self.convertButton.setSizePolicy(QSizePolicy.Policy.Fixed, QSizePolicy.Policy.Fixed)
-        convertLayout.addWidget(self.convertButton)
-        convertLayout.addStretch(1)
-
-        # 7th line: Import info
-        self.importInfoLabel = QLabel(text="")
-        self.importInfoLabel.setAlignment(QtCore.Qt.AlignmentFlag.AlignCenter)
-        self.layout.addWidget(self.importInfoLabel)
+        # Import info
+        self.infoLabel = QLabel(text="")
+        self.infoLabel.setAlignment(QtCore.Qt.AlignmentFlag.AlignCenter)
+        self.layout.addWidget(self.infoLabel)
 
         self.layout.addStretch(2)
 
         self.toggleableWidgets = (
-            inputFormatWidget,
-            outputFormatWidget,
-            outputPathWidget,
+            self.inputFormatLayout.parentWidget(),
+            self.outputFormatLayout.parentWidget(),
+            self.outputPathLayout.parentWidget(),
             self.estimatedSizeLabel,
             convertWidget
         )
@@ -159,15 +133,6 @@ class ConvertAudioTab(MainTab):
     def toggle_import_options(self, enabled):
         for widget in self.toggleableWidgets:
             widget.setEnabled(enabled)
-
-    
-    # Change the info message
-    def set_info_message(self, message, colour):
-        self.importInfoLabel.setText(message)
-        palette = self.importInfoLabel.palette()
-        palette.setColor(QPalette.ColorRole.WindowText, colour)
-        self.importInfoLabel.setPalette(palette)
-
 
     # Calculate the estimated size of the imported audio
     def calculate_estimated_size(self):
@@ -211,7 +176,7 @@ class ConvertAudioTab(MainTab):
                 self.toggle_import_options(False)
                 self.set_info_message("Error: Invalid audio file", COLOR_RED)
                 return
-            self.set_info_message("", COLOR_WHITE)
+            self.clear_info_message()
 
             # Set labels based on audio file properties
             self.selectedFileLabel.setText("Selected audio file: " + os.path.basename(self.inputFile))
@@ -273,12 +238,13 @@ class ConvertAudioTab(MainTab):
 
         in_stream = inputFile.streams.audio[0]
         out_stream = outputFile.add_stream("pcm_s16be", outputSampleRate)
-        out_stream.channels = 1 if self.monoCheckbox.isChecked() else in_stream.channels
+        outputLayout = "mono" if self.monoCheckbox.isChecked() else in_stream.layout.name
+        out_stream.layout = outputLayout
 
         # Resample audio
         resampler = av.AudioResampler(
             format="s16",
-            layout="mono" if self.monoCheckbox.isChecked() else in_stream.layout.name,
+            layout=outputLayout,
             rate=outputSampleRate
         )
 
@@ -295,5 +261,5 @@ class ConvertAudioTab(MainTab):
         inputFile.close()
         outputFile.close()
 
-        self.mainWindow.set_audio_file(self.outputPath.text())
+        self.mainWindow.set_all_audio_files(self.outputPath.text())
         self.set_info_message("Success!", COLOR_GREEN)

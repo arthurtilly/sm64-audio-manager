@@ -9,11 +9,14 @@ else:
     with open("persistent.json", "r") as jsonFile:
         persistent = json.load(jsonFile)
 
+
 if "decomp" in persistent:
     decomp = persistent["decomp"]
 
 from tab_music import *
 from tab_convert import *
+from tab_sfx import *
+from tab_soundbank import *
 
 from PyQt6.QtWidgets import *
 from PyQt6.QtGui import *
@@ -77,13 +80,16 @@ class MainWindow(QWidget):
         # Set button palette to window palette
         palette.setColor(QPalette.ColorRole.Button, palette.color(QPalette.ColorRole.Window))
         self.tabWidget.setPalette(palette)
+        self.chunkDict = ChunkDictionary(decomp)
 
         self.layout.insertWidget(0, self.tabWidget)
         self.layout.setStretchFactor(self.tabWidget, 1)
         self.tabs = []
 
-        self.add_tab(StreamedMusicTab, "Streamed Music")
+        self.add_tab(ImportSfxTab, "Sound Effects")
+        self.add_tab(SoundbankTab, "Instruments")
         self.add_tab(ConvertAudioTab, "Convert Audio")
+        self.add_tab(StreamedMusicTab, "Streamed Music")
 
 
     # Add a new tab to the main page notebook
@@ -93,13 +99,17 @@ class MainWindow(QWidget):
         self.tabs.append(newTab)
 
 
-    def set_audio_file(self, path):
+    def set_all_audio_files(self, path):
         for tab in self.tabs:
             tab.set_audio_file(path)
 
+    def write_seq00(self):
+        self.chunkDict.trim_chunks()
+        self.chunkDict.reconstruct_sequence_player()
+
 
 # The frame that displays the current decomp directory
-class DecompBar(QWidget):
+class DecompBar(QFrame):
     def __init__(self, parent):
         super().__init__()
 
@@ -115,6 +125,8 @@ class DecompBar(QWidget):
         self.layout.setStretchFactor(self.setDecompFolder, 1)
         self.layout.setAlignment(self.setDecompFolder, QtCore.Qt.AlignmentFlag.AlignLeft)
 
+        self.setFrameShape(QFrame.Shape.StyledPanel)
+
     # Add border
     def paintEvent(self, event):
         painter = QPainter(self)
@@ -125,11 +137,8 @@ class DecompBar(QWidget):
         gradient.setColorAt(1, QColor(20, 20, 20))
         painter.setBrush(gradient)
         painter.drawRect(0, 0, self.width(), self.height())
-        # Draw border
-        pen.setColor(QColor(20, 20, 20))
-        pen.setWidth(2)
-        painter.setPen(pen)
-        painter.drawRect(0, 0, self.width(), self.height())
+
+        super().paintEvent(event)
 
 
 # Save all persistent data

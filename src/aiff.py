@@ -1,5 +1,5 @@
 import os
-import aifc
+import soundfile as sf
 import struct
 
 from misc import *
@@ -30,12 +30,10 @@ def add_loop_to_aiff(aiffPath, loopBegin, loopEnd):
     f.close() 
 
 
-# Takes an AIFF file, splits up every channel into a separate file, and adds a loop
 def process_aiff_file(input, outputFolder, outputName=None, loop=True, loopBegin=None, loopEnd=None):
-    # Open the AIFF file
-    aiffIn = aifc.open(input, "r")
-    numChannels = aiffIn.getnchannels()
-    numFrames = aiffIn.getnframes()
+    # Read the AIFF file
+    data, samplerate = sf.read(input, always_2d=True)  # shape: (frames, channels)
+    numFrames, numChannels = data.shape
 
     # Process given loop points
     if loopBegin is None:
@@ -44,9 +42,9 @@ def process_aiff_file(input, outputFolder, outputName=None, loop=True, loopBegin
         loopEnd = numFrames
 
     if loopBegin < 0 or loopBegin > numFrames:
-        raise AudioManagerException("Loop beginning out of range: '%d' (must be between 0 and %d)" % (loopBegin, numFrames))
+        raise AudioManagerException(f"Loop beginning out of range: '{loopBegin}' (must be between 0 and {numFrames})")
     if loopEnd < 0 or loopEnd > numFrames:
-        raise AudioManagerException("Loop end out of range: '%d' (must be between 0 and %d)" % (loopEnd, numFrames))
+        raise AudioManagerException(f"Loop end out of range: '{loopEnd}' (must be between 0 and {numFrames})")
     if loopBegin >= loopEnd:
         raise AudioManagerException("Loop beginning must be before loop end")
 
@@ -56,29 +54,21 @@ def process_aiff_file(input, outputFolder, outputName=None, loop=True, loopBegin
     if numChannels > 1:
         outputName = outputName + "_%d"
 
-    if not os.path.exists(outputFolder):
-        os.makedirs(outputFolder)
+    os.makedirs(outputFolder, exist_ok=True)
 
-    soundData = aiffIn.readframes(numFrames)
     outputtedFiles = []
 
     # Split up the channels into seperate AIFF files
     for i in range(numChannels):
-        # Create a new AIFF file
         if numChannels > 1:
             filename = (outputName % (i+1))
         else:
             filename = outputName
         output = os.path.join(outputFolder, filename + ".aiff")
-        aiffOut = aifc.open(output, "w")
-        aiffOut.setparams(aiffIn.getparams())
-        aiffOut.setnchannels(1)
 
-        # Write only the data from channel i
-        channelData = (soundData[j+2*i:j+2*i+2] for j in range(0, numFrames*2*numChannels, 2*numChannels))
-        aiffOut.writeframes(b"".join(channelData))
-
-        aiffOut.close()
+        # Extract channel i and write as mono AIFF
+        channel_data = data[:, i]
+        sf.write(output, channel_data, samplerate, format='AIFF')
 
         # Add loop points
         if loop:
@@ -86,5 +76,14 @@ def process_aiff_file(input, outputFolder, outputName=None, loop=True, loopBegin
 
         outputtedFiles.append(output)
 
-    aiffIn.close()
     return outputtedFiles
+
+def get_aiff_duration(path):
+    try:
+        with sf.SoundFile(path) as snd:
+            nframes = len(snd)
+            samplerate = snd.samplerate
+            duration = nframes / samplerate
+            return duration
+    except sf.SoundFileError:
+        raise AudioManagerException("Invalid AIFF file")

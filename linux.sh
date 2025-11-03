@@ -16,23 +16,35 @@ if ! command_exists python; then
 
         # Install Python for Ubuntu-based distributions
         sudo apt install -y python3
+
+        # Install uv from python pip, then we can continue
+        python3 -m pip install uv
     elif command_exists pacman; then
         # Install Python for Arch Linux
-        sudo pacman -Sy --noconfirm python
+        sudo pacman -Sy --noconfirm uv
     elif command_exists dnf; then
         # Install Python for Fedora-based distributions
-        sudo dnf install -y python3
+        sudo dnf install -y uv
     else
-        echo "Unsupported distribution. Please install Python manually."
+        echo "Unsupported distribution. Please install Python/uv manually."
         exit 1
     fi
 
-    echo "Python has been installed."
+    echo "uv has been installed."
 fi
 
-# Install Python dependencies
-pip3 install PyQt6
-pip3 install av
+# Install locked python version
+uv python install 3.12
 
-# Run GUI
-python3 src/gui/gui_main.py
+# Create the venv and activate it
+uv venv --clear
+source .venv/bin/activate
+
+# install all packages specified in uv.lock
+uv sync
+
+# Run the GUI
+uv run src/gui/gui_main.py
+
+# Clean up venv after
+deactivate
