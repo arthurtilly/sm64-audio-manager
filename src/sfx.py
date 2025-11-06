@@ -190,6 +190,8 @@ def delete_sfx(decomp, chunkDict, banks, id):
 # Insert a new empty sound effect
 # Does not create new defines, but shifts existing ones forward
 def insert_sfx(decomp, chunkDict, banks, id, name):
+    if name in chunkDict.dictionary:
+        raise AudioManagerException(f"Sound with the name '{name}' already exists!")
     sounds_h = read_sfx_file(decomp)
     shift_sfx_ids(sounds_h, banks, id, 1)
     newChunk = chunkDict.insert_sound_ref(banks[0], id, name)

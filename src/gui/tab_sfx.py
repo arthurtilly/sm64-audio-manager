@@ -568,9 +568,8 @@ class ImportSfxTab(MainTab):
             validate_name(name, "sound name")
 
             oldName = self.selectedChunk.name
-            self.selectedChunk.name = "." + name
 
-            self.chunkDictionary.change_sound_name(oldName, self.selectedChunk.name)
+            self.chunkDictionary.change_sound_name(oldName, "." + name)
             self.mainWindow.write_seq00()
 
         except AudioManagerException as e:
