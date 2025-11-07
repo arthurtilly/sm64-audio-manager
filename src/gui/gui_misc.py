@@ -2,7 +2,6 @@ import sys
 import os
 from PyQt6.QtWidgets import *
 from PyQt6.QtGui import *
-from PyQt6 import QtCore
 
 import threading
 import playsound3

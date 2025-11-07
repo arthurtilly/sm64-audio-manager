@@ -568,9 +568,8 @@ class ImportSfxTab(MainTab):
             validate_name(name, "sound name")
 
             oldName = self.selectedChunk.name
-            self.selectedChunk.name = "." + name
 
-            self.chunkDictionary.change_sound_name(oldName, self.selectedChunk.name)
+            self.chunkDictionary.change_sound_name(oldName, "." + name)
             self.mainWindow.write_seq00()
 
         except AudioManagerException as e:
@@ -737,7 +736,6 @@ class ImportSfxTab(MainTab):
             modify_sfx_defines(self.decomp, channel.banks, item.sfxListEntry.sfxID, newSfxs)
             self.init_define_rows(item.sfxListEntry)
             self.set_info_message("Saved!", COLOR_GREEN)
-            pass
         except AudioManagerException as e:
             self.set_info_message("Error: " + str(e), COLOR_RED)
 

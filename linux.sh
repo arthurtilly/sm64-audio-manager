@@ -36,15 +36,11 @@ fi
 # Install locked python version
 uv python install 3.12
 
-# Create the venv and activate it
+# Create the venv
 uv venv --clear
-source .venv/bin/activate
 
 # install all packages specified in uv.lock
 uv sync
 
 # Run the GUI
 uv run src/gui/gui_main.py
-
-# Clean up venv after
-deactivate

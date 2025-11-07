@@ -1,10 +1,7 @@
 from gui_misc import *
 
-from dataclasses import dataclass
-import soundfile as sf
 from PyQt6.QtWidgets import *
 from PyQt6.QtGui import *
-from PyQt6 import QtCore
 
 # Defines a generic handler for a QGridLayout with dynamic rows.
 

@@ -512,7 +512,6 @@ class SoundbankTab(MainTab):
             self.selectedSoundbank.insertChild(index, child)
             self.soundbankList.blockSignals(False)
             self.soundbankList.setCurrentItem(child)
-            pass
         except AudioManagerException as e:
             self.set_info_message("Error: " + str(e), COLOR_RED)
 
@@ -552,7 +551,7 @@ class SoundbankTab(MainTab):
             if self.chosenSamplePath is None:
                 raise AudioManagerException("No audio file selected!")
             
-            numChannels = sf.read(self.chosenSamplePath, always_2d=True)[0].shape[1]
+            numChannels = sf.info(self.chosenSamplePath).channels
             if numChannels > 1:
                 raise AudioManagerException("Sample must be mono!")
                 

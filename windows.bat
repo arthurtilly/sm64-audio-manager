@@ -23,13 +23,9 @@ python -m pip install uv
 
 REM create the venv and activate it
 python -m uv venv --clear
-call ".venv/bin/activate.bat"
 
 REM sync dependencies
 python -m uv sync
 
 REM Run GUI
 python -m uv run src/gui/gui_main.py
-
-REM Clean up venv
-call ".venv/bin/deactivate.bat"
