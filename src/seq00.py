@@ -87,9 +87,6 @@ class BankCommand:
     def __init__(self, bank):
         self.bank = bank
 
-    #def __repr__(self):
-    #    return self.get_str()
-
     def get_str(self):
         return "chan_setbank %d" % self.bank
 
@@ -98,9 +95,6 @@ class InstrCommand:
         self.isLayer = isLayer
         self.bank = None
         self.instrument = instrument
-
-    # def __repr__(self):
-    #     return self.get_str()
 
     def get_str(self):
         if (self.isLayer):
@@ -175,7 +169,7 @@ class SequencePlayerChunk:
     def resolve_instruments(self, bankcmd=None, checked=None):
         # Recursion guard
         if checked is None: checked = []
-        if self in checked: return set()
+        if self in checked: return
         checked.append(self)
 
         checkedChildren = set()
@@ -404,6 +398,7 @@ class ChunkDictionary:
                         line.reference = replaceChunk
                     return oldChunk
                 i += 1
+        return None
 
 
     # Get all sound references in a channel table
